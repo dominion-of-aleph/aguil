@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="AvaloniaPlayground.Tests/AvaloniaPlayground.Tests.csproj" />
+  <Project Path="AvaloniaPlayground/AvaloniaPlayground.csproj" />
+</Solution>
