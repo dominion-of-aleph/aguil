@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices.Swift;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 
