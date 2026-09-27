@@ -26,11 +26,11 @@ public partial class ReplViewModel : ViewModelBase
         try
         {
             var res = await _al.QueryAl(source, null);
-            History.Add(new ReplEntry(source, res.ToString()));
+            History.Add(new ReplSuccess(source, res));
         }
         catch (AlException e)
         {
-            History.Add(new ReplEntry(source, e.Message));
+            History.Add(new ReplFailure(source, e.Message));
         }
     }
     

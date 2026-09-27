@@ -1,3 +1,9 @@
+using AvaloniaPlayground.Core;
+
 namespace AvaloniaPlayground;
 
-public record ReplEntry(string Source, string Result);
+public abstract record ReplEntry(string Source);
+
+public sealed record ReplSuccess(string Source, EvaluationContext Result) : ReplEntry(Source);
+
+public sealed record ReplFailure(string Source, string Error) : ReplEntry(Source);

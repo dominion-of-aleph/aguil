@@ -21,7 +21,16 @@
                                 <Run Text="{Binding Source}" />
                             </SelectableTextBlock>
                             <!-- Change to a tab view -->
-                            <SelectableTextBlock Foreground="LightSeaGreen" Text="{Binding Result}" />
+                            <ContentControl Content="{Binding}">
+                                <ContentControl.DataTemplates>
+                                    <DataTemplate x:DataType="avaloniaPlayground:ReplSuccess">
+                                        <SelectableTextBlock Foreground="LightSeaGreen" Text="{Binding Result}" />
+                                    </DataTemplate>
+                                    <DataTemplate x:DataType="avaloniaPlayground:ReplFailure">
+                                        <SelectableTextBlock Foreground="IndianRed" Text="{Binding Error}" />
+                                    </DataTemplate>
+                                </ContentControl.DataTemplates>
+                            </ContentControl>
                         </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
