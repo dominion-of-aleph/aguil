@@ -9,18 +9,22 @@ open AvaloniaPlayground.Core.AlValues
 type AlException(message: string) =
     inherit Exception(message)
 
+type DecodeError =
+    | UnknownType of string
+    | UnknownEncoding of string
+
 type Binding = {
     Symbol: string
-    Value: AlValue option
+    Value: Result<AlValue, DecodeError>
 } with
     // slopped out
     member b.Pretty(width: int) =
         let prefix = $"{b.Symbol} = "
 
         let value =
-            b.Value
-            |> Option.map (fun v -> AlValue.Pretty(width, prefix.Length, 0, v))
-            |> Option.defaultValue "<Decoding Error>"
+            match b.Value with
+            | Ok v -> AlValue.Pretty(width, prefix.Length, 0, v)
+            | Error e -> $"<decode error: %A{e}>"
 
         prefix + value
 
@@ -38,43 +42,45 @@ type EvaluationContext = {
 type AlMcpClient(url: string) =
     let http = new HttpClient()
     let mutable currentId = 0
-    // refactor to return an either Result inside the Task, rather than throwing
-    let sequence (xs: 'a option list) : 'a list option =
+
+    let sequence (xs: Result<'a, 'e> list) : Result<'a list, 'e> =
         List.foldBack
             (fun x acc ->
                 match x, acc with
-                | Some v, Some vs -> Some(v :: vs)
-                | _ -> None)
+                | Ok v, Ok vs -> Ok(v :: vs)
+                | Error e, _ -> Error e
+                | _, Error e -> Error e)
             xs
-            (Some [])
+            (Ok [])
 
     let traverse f xs = xs |> List.map f |> sequence
 
     let rec mcp_decode_items (json: JsonElement) =
         json.GetProperty("items").EnumerateArray() |> List.ofSeq |> traverse mcp_decode_to_term
-    // Make into an either, with noting what failed where
-    and mcp_decode_to_term (json: JsonElement) : AlValue option =
+
+    and mcp_decode_to_term (json: JsonElement) : Result<AlValue, DecodeError> =
         let str (name: string) = json.GetProperty(name).GetString()
 
         match str "type" with
-        | "variable" -> str "name" |> AlVar |> Some
-        | "atom" -> str "name" |> AlAtom |> Some
-        | "integer" -> str "value" |> bigint.Parse |> AlInteger |> Some
-        | "float" -> str "value" |> float |> AlFloat |> Some
-        // TODO :: cover the base64 encoding, match on encoding
-        | "binary" when str "encoding" = "base64" ->
-            str "value" |> System.Convert.FromBase64String |> AlBinary |> Some
-        | "binary" -> str "value" |> AlText |> Some
+        | "variable" -> str "name" |> AlVar |> Ok
+        | "atom" -> str "name" |> AlAtom |> Ok
+        | "integer" -> str "value" |> bigint.Parse |> AlInteger |> Ok
+        | "float" -> str "value" |> float |> AlFloat |> Ok
+        | "binary" ->
+            match str "encoding" with
+            | "utf8" -> str "value" |> AlText |> Ok
+            | "base64" -> str "value" |> Convert.FromBase64String |> AlBinary |> Ok
+            | other -> Error(UnknownEncoding other)
         | "list" ->
             let items = mcp_decode_items json
 
             match json.TryGetProperty "tail" with
             | true, tail ->
-                Option.bind
-                    (fun t -> Option.map (fun i -> AlImproperList(i, t)) items)
+                Result.bind
+                    (fun t -> Result.map (fun i -> AlImproperList(i, t)) items)
                     (mcp_decode_to_term tail)
-            | false, _ -> Option.map AlList items
-        | "tuple" -> Option.map AlTuple (mcp_decode_items json)
+            | false, _ -> Result.map AlList items
+        | "tuple" -> mcp_decode_items json |> Result.map AlTuple
         | "map" ->
             json.GetProperty("entries").EnumerateArray()
             |> List.ofSeq
@@ -82,9 +88,9 @@ type AlMcpClient(url: string) =
                 let key = mcp_decode_to_term (jtuple.GetProperty("key"))
                 let value = mcp_decode_to_term (jtuple.GetProperty("value"))
 
-                Option.bind (fun k -> Option.map (fun v -> k, v) value) key)
-            |> Option.map (fun tup -> AlMap(Map.ofSeq tup))
-        | _ -> None
+                Result.bind (fun k -> Result.map (fun v -> k, v) value) key)
+            |> Result.map (fun tup -> AlMap(Map.ofSeq tup))
+        | other -> Error(UnknownType other)
 
     let callTool (toolName: string) (arguments: obj) =
         task {
