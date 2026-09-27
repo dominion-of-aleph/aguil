@@ -4,6 +4,37 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="AvaloniaPlayground.Views.Repl"
+        xmlns:vm="using:AvaloniaPlayground.ViewModels"
+        xmlns:avaloniaPlayground="clr-namespace:AvaloniaPlayground"
+        x:DataType="vm:ReplViewModel"
+        FontSize="16"
         Title="Repl">
-    Welcome to Avalonia!
+    <!-- Change AL-USER to include the branch -->
+    <ScrollViewer Name="Scroll">
+        <StackPanel>
+            <ItemsControl ItemsSource="{Binding History}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="avaloniaPlayground:ReplEntry">
+                        <StackPanel>
+                            <SelectableTextBlock>
+                                <Run Text="AL-USER> " Foreground="DarkSlateBlue"/>
+                                <Run Text="{Binding Source}" />
+                            </SelectableTextBlock>
+                            <!-- Change to a tab view -->
+                            <SelectableTextBlock Foreground="LightSeaGreen" Text="{Binding Result}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBox Text="{Binding Source}" AcceptsReturn="True" BorderThickness="0">
+                <TextBox.KeyBindings>
+                    <KeyBinding Gesture="Ctrl+Enter" Command="{Binding RunCommand}" />
+                </TextBox.KeyBindings>
+                <TextBox.InnerLeftContent>
+                    <TextBlock Foreground="DarkSlateBlue" Text="AL-USER> " VerticalAlignment="Top"></TextBlock>
+                </TextBox.InnerLeftContent>
+            </TextBox>
+        </StackPanel>
+    </ScrollViewer>
 </Window>

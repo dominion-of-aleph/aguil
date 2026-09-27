@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="AlValues.fs" />
     <Compile Include="AlMcpClient.fs" />
   </ItemGroup>
 
