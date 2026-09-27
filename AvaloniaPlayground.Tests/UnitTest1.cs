@@ -1,4 +1,4 @@
-﻿using AvaloniaPlayground.Models;
+﻿using AvaloniaPlayground.Core;
 using Xunit.Abstractions;
 
 namespace AvaloniaPlayground.Tests;
