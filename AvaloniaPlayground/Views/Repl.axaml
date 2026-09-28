@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="AvaloniaPlayground.Views.Repl"
         xmlns:vm="using:AvaloniaPlayground.ViewModels"
@@ -14,19 +15,19 @@
         <StackPanel>
             <ItemsControl ItemsSource="{Binding History}">
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="avaloniaPlayground:ReplEntry">
+                    <DataTemplate x:DataType="vm:ReplEntry">
                         <StackPanel>
                             <SelectableTextBlock>
-                                <Run Text="AL-USER> " Foreground="DarkSlateBlue"/>
+                                <Run Text="AL-USER> " Foreground="DarkSlateBlue" />
                                 <Run Text="{Binding Source}" />
                             </SelectableTextBlock>
                             <!-- Change to a tab view -->
                             <ContentControl Content="{Binding}">
                                 <ContentControl.DataTemplates>
-                                    <DataTemplate x:DataType="avaloniaPlayground:ReplSuccess">
+                                    <DataTemplate x:DataType="vm:ReplSuccess">
                                         <SelectableTextBlock Foreground="LightSeaGreen" Text="{Binding Result}" />
                                     </DataTemplate>
-                                    <DataTemplate x:DataType="avaloniaPlayground:ReplFailure">
+                                    <DataTemplate x:DataType="vm:ReplFailure">
                                         <SelectableTextBlock Foreground="IndianRed" Text="{Binding Error}" />
                                     </DataTemplate>
                                 </ContentControl.DataTemplates>
@@ -36,14 +37,12 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <TextBox Text="{Binding Source}" AcceptsReturn="True" BorderThickness="0">
-                <TextBox.KeyBindings>
-                    <KeyBinding Gesture="Ctrl+Enter" Command="{Binding RunCommand}" />
-                </TextBox.KeyBindings>
-                <TextBox.InnerLeftContent>
-                    <TextBlock Foreground="DarkSlateBlue" Text="AL-USER> " VerticalAlignment="Top"></TextBlock>
-                </TextBox.InnerLeftContent>
-            </TextBox>
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="AL-USER> " Foreground="DarkSlateBlue" />
+                <ae:TextEditor Name="Input" ShowLineNumbers="False"
+                               FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
+                               VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled" />
+            </DockPanel>
         </StackPanel>
     </ScrollViewer>
 </Window>

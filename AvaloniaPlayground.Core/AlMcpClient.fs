@@ -86,6 +86,28 @@ type AlMcpClient(url: string) =
             return result.GetProperty "structuredContent"
         }
 
+    let grab (content: JsonElement) =
+        content.EnumerateArray()
+        |> Seq.map (fun b ->
+            b.GetProperty("variable").GetProperty("name").GetString(),
+            mcp_decode_to_term (b.GetProperty "value"))
+        |> List.ofSeq
+        |> Binding.partition
+
+    let grab_store (content: JsonElement) =
+        content.EnumerateArray()
+        |> Seq.map (fun e ->
+            let key = e.GetProperty "key"
+
+            let symbol =
+                match mcp_decode_to_term key with
+                | Ok k -> AlValue.Flat k
+                | Error _ -> key.GetRawText()
+
+            symbol, mcp_decode_to_term (e.GetProperty "value"))
+        |> List.ofSeq
+        |> Binding.partition
+
     new() = AlMcpClient("http://127.0.0.1:3031/mcp")
 
     member _.QueryAl(source: string, branch: string) =
@@ -93,13 +115,14 @@ type AlMcpClient(url: string) =
             let! content =
                 callTool "queryAL" (box {| source = source; branch = Option.ofObj branch |})
 
-            let bindings =
-                content.GetProperty("bindings").EnumerateArray()
-                |> Seq.map (fun b -> {
-                    Symbol = b.GetProperty("variable").GetProperty("name").GetString()
-                    Value = mcp_decode_to_term (b.GetProperty("value"))
-                })
-                |> List.ofSeq
-
-            return { Bindings = bindings }
+            return {
+                Store = grab_store (content.GetProperty "store")
+                Context = content.GetProperty("context").GetString()
+                Bindings = grab (content.GetProperty "bindings")
+                Constraints = grab (content.GetProperty "constraints")
+                HasPotentialSolution = content.GetProperty("hasPotentialSolution").GetBoolean()
+            }
         }
+
+    member _.DebugGrab(source: string, branch: string) =
+        callTool "queryAL" (box {| source = source; branch = Option.ofObj branch |})

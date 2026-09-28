@@ -1,6 +1,6 @@
 using AvaloniaPlayground.Core;
 
-namespace AvaloniaPlayground;
+namespace AvaloniaPlayground.ViewModels;
 
 public abstract record ReplEntry(string Source);
 
