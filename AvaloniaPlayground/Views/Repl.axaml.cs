@@ -1,8 +1,13 @@
+using System;
+using System.IO;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Styling;
 using Avalonia.Threading;
+using AvaloniaEdit.TextMate;
 using AvaloniaPlayground.ViewModels;
+using TextMateSharp.Grammars;
 
 namespace AvaloniaPlayground.Views;
 
@@ -35,6 +40,16 @@ public partial class Repl : Window
         }, RoutingStrategies.Tunnel);
 
         vm.History.CollectionChanged += (_, _) => ScrollToEnd();
+
+        var textMateOptions = new RegistryOptions(ThemeName.DarkPlus);
+        var textMate = Input.InstallTextMate(textMateOptions);
+        textMate.SetGrammarFile(Path.Combine(AppContext.BaseDirectory, "Grammars", "elixir.json"));
+        ActualThemeVariantChanged += (_, _) => ApplyTheme();
+        ApplyTheme();
+
+        void ApplyTheme() =>
+            textMate.SetTheme(textMateOptions.LoadTheme(
+                ActualThemeVariant == ThemeVariant.Dark ? ThemeName.DarkPlus : ThemeName.LightPlus));
     }
 
     // the new content has not been laid out yet when these fire
