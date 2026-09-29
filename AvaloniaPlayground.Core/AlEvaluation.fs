@@ -6,16 +6,10 @@ type DecodeError =
     | UnknownType of string
     | UnknownEncoding of string
 
-type Binding<'a> = {
-    Symbol: string
-    Value: 'a
-}
+type Binding<'a> = { Symbol: string; Value: 'a }
 
 /// Evaluated Terms, preserving failures
-type Decoded = {
-    Values: Binding<AlValue> list
-    Failures: Binding<DecodeError> list
-}
+type Decoded = { Values: Binding<AlValue> list; Failures: Binding<DecodeError> list }
 
 [<RequireQualifiedAccess>]
 module Binding =
@@ -32,12 +26,12 @@ module Binding =
         { Values = values; Failures = failures }
 
     // slopped out
-    let pretty (width: int) (b: Binding<AlValue>) =
-        let prefix = $"{b.Symbol} = "
+    let pretty (sep: string) (width: int) (b: Binding<AlValue>) =
+        let prefix = b.Symbol + sep
         prefix + AlValue.Pretty(width, prefix.Length, 0, b.Value)
 
-    let prettyFailure (b: Binding<DecodeError>) =
-        $"{b.Symbol} = <decode error: %A{b.Value}>"
+    let prettyFailure (sep: string) (b: Binding<DecodeError>) =
+        $"{b.Symbol}{sep}<decode error: %A{b.Value}>"
 
 type EvaluationContext = {
     Bindings: Decoded
@@ -48,16 +42,13 @@ type EvaluationContext = {
     // If any choicepoints are left, indicating potential solutions
     HasPotentialSolution: bool
 } with
-    member c.AllFailures =
-        [ c.Bindings; c.Constraints; c.Store ] |> List.collect (fun d -> d.Failures)
-
     // slopped out
     member c.Pretty(width: int) =
-        let section (d: Decoded) =
-            (d.Values |> List.map (Binding.pretty width))
-            @ (d.Failures |> List.map Binding.prettyFailure)
+        let section sep (d: Decoded) =
+            (d.Values |> List.map (Binding.pretty sep width))
+            @ (d.Failures |> List.map (Binding.prettyFailure sep))
 
-        section c.Bindings @ section c.Constraints @ section c.Store
+        section " = " c.Bindings @ section " : " c.Constraints @ section " => " c.Store
         |> String.concat "\n"
         |> fun body -> body + "\n" + c.Context
 

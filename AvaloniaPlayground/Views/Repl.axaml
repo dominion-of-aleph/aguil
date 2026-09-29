@@ -6,41 +6,87 @@
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="AvaloniaPlayground.Views.Repl"
         xmlns:vm="using:AvaloniaPlayground.ViewModels"
-        xmlns:avaloniaPlayground="clr-namespace:AvaloniaPlayground"
         x:DataType="vm:ReplViewModel"
         FontSize="16"
         Title="Repl">
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Alt+OemSemicolon" Command="{Binding NextSolutionCommand}" />
+        <KeyBinding Gesture="Alt+OemPeriod" Command="{Binding AllSolutionsCommand}" />
+    </Window.KeyBindings>
     <!-- Change AL-USER to include the branch -->
     <ScrollViewer Name="Scroll">
         <StackPanel>
-            <ItemsControl ItemsSource="{Binding History}">
-                <ItemsControl.ItemTemplate>
+            <ListBox ItemsSource="{Binding History}" SelectedItem="{Binding Selected}"
+                     Background="Transparent" BorderThickness="0"
+                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="0" />
+                    </Style>
+                    <Style Selector="ListBoxItem /template/ ContentPresenter">
+                        <Setter Property="Background" Value="Transparent" />
+                    </Style>
+                    <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                        <Setter Property="Background" Value="Transparent" />
+                    </Style>
+                    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                        <Setter Property="Background" Value="Transparent" />
+                    </Style>
+                    <Style Selector="ListBoxItem:selected Border.entry">
+                        <Setter Property="BorderBrush"
+                                Value="{DynamicResource SystemControlForegroundAccentBrush}" />
+                    </Style>
+                </ListBox.Styles>
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:ReplEntry">
-                        <StackPanel>
-                            <SelectableTextBlock>
-                                <Run Text="AL-USER> " Foreground="DarkSlateBlue" />
-                                <Run Text="{Binding Source}" />
-                            </SelectableTextBlock>
-                            <!-- Change to a tab view -->
-                            <ContentControl Content="{Binding}">
-                                <ContentControl.DataTemplates>
-                                    <DataTemplate x:DataType="vm:ReplSuccess">
-                                        <SelectableTextBlock Foreground="LightSeaGreen" Text="{Binding Result}" />
-                                    </DataTemplate>
-                                    <DataTemplate x:DataType="vm:ReplFailure">
-                                        <SelectableTextBlock Foreground="IndianRed" Text="{Binding Error}" />
-                                    </DataTemplate>
-                                </ContentControl.DataTemplates>
-                            </ContentControl>
-                        </StackPanel>
+                        <Border Classes="entry" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" BorderThickness="1" CornerRadius="4"
+                                Padding="8" Margin="0,0,0,6" Background="Transparent">
+                            <StackPanel>
+                                <SelectableTextBlock>
+                                    <Run Text="AL-USER> " Foreground="DarkSlateBlue" />
+                                    <Run Text="{Binding Source}" />
+                                </SelectableTextBlock>
+                                <!-- Change to a tab view -->
+                                <ContentControl Content="{Binding}">
+                                    <ContentControl.DataTemplates>
+                                        <DataTemplate x:DataType="vm:ReplSuccess">
+                                            <StackPanel>
+                                                <SelectableTextBlock Foreground="LightSeaGreen" Text="{Binding Result}" />
+                                                <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
+                                                    <Button Command="{Binding PrevCommand}" ToolTip.Tip="Previous solution">
+                                                        <PathIcon Width="10" Height="10"
+                                                                  Data="M 10,0 L 10,12 L 1,6 Z" />
+                                                    </Button>
+                                                    <Button Command="{Binding NextCommand}" ToolTip.Tip="Next solution">
+                                                        <PathIcon Width="10" Height="10"
+                                                                  Data="M 2,0 L 2,12 L 11,6 Z" />
+                                                    </Button>
+                                                    <TextBlock Text="{Binding Position}" VerticalAlignment="Center"
+                                                               Foreground="DimGray" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                        <DataTemplate x:DataType="vm:ReplFailure">
+                                            <SelectableTextBlock Foreground="IndianRed" Text="{Binding Error}" />
+                                        </DataTemplate>
+                                    </ContentControl.DataTemplates>
+                                </ContentControl>
+                            </StackPanel>
+                        </Border>
                     </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                </ListBox.ItemTemplate>
+            </ListBox>
 
             <DockPanel>
                 <TextBlock DockPanel.Dock="Left" Text="AL-USER> " Foreground="DarkSlateBlue" />
                 <ae:TextEditor Name="Input" ShowLineNumbers="False"
                                FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
+                               
                                VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled" />
             </DockPanel>
         </StackPanel>

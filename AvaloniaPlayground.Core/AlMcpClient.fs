@@ -56,8 +56,8 @@ type AlMcpClient(url: string) =
             json.GetProperty("entries").EnumerateArray()
             |> List.ofSeq
             |> traverse (fun jtuple ->
-                let key = mcp_decode_to_term (jtuple.GetProperty("key"))
-                let value = mcp_decode_to_term (jtuple.GetProperty("value"))
+                let key = mcp_decode_to_term (jtuple.GetProperty "key")
+                let value = mcp_decode_to_term (jtuple.GetProperty "value")
 
                 Result.bind (fun k -> Result.map (fun v -> k, v) value) key)
             |> Result.map (fun tup -> AlMap(Map.ofSeq tup))
@@ -99,14 +99,19 @@ type AlMcpClient(url: string) =
         |> Seq.map (fun e ->
             let key = e.GetProperty "key"
 
-            let symbol =
-                match mcp_decode_to_term key with
-                | Ok k -> AlValue.Flat k
-                | Error _ -> key.GetRawText()
-
-            symbol, mcp_decode_to_term (e.GetProperty "value"))
+            match mcp_decode_to_term key with
+            | Ok k -> AlValue.Flat k, mcp_decode_to_term (e.GetProperty "value")
+            | Error err -> key.GetRawText(), Error err)
         |> List.ofSeq
         |> Binding.partition
+
+    let grab_context (content: JsonElement) = {
+        Bindings = grab (content.GetProperty "bindings")
+        Constraints = grab (content.GetProperty "constraints")
+        Store = grab_store (content.GetProperty "store")
+        Context = content.GetProperty("context").GetString()
+        HasPotentialSolution = content.GetProperty("hasPotentialSolution").GetBoolean()
+    }
 
     new() = AlMcpClient("http://127.0.0.1:3031/mcp")
 
@@ -115,13 +120,13 @@ type AlMcpClient(url: string) =
             let! content =
                 callTool "queryAL" (box {| source = source; branch = Option.ofObj branch |})
 
-            return {
-                Store = grab_store (content.GetProperty "store")
-                Context = content.GetProperty("context").GetString()
-                Bindings = grab (content.GetProperty "bindings")
-                Constraints = grab (content.GetProperty "constraints")
-                HasPotentialSolution = content.GetProperty("hasPotentialSolution").GetBoolean()
-            }
+            return grab_context content
+        }
+
+    member _.NextSolution(context: string) =
+        task {
+            let! content = callTool "nextSolution" (box {| context = context |})
+            return grab_context content
         }
 
     member _.DebugGrab(source: string, branch: string) =

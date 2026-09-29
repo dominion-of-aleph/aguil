@@ -1,8 +1,7 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using AvaloniaPlayground.ViewModels;
 
 namespace AvaloniaPlayground.Views;
@@ -15,7 +14,11 @@ public partial class Repl : Window
         var vm = new ReplViewModel();
         DataContext = vm;
 
-        Input.TextChanged += (_, _) => vm.Source = Input.Text;
+        Input.TextChanged += (_, _) =>
+        {
+            vm.Source = Input.Text;
+            ScrollToEnd();
+        };
         vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(vm.Source) && Input.Text != vm.Source)
@@ -31,6 +34,10 @@ public partial class Repl : Window
             }
         }, RoutingStrategies.Tunnel);
 
-        vm.History.CollectionChanged += (_, _) => Scroll.ScrollToEnd();
+        vm.History.CollectionChanged += (_, _) => ScrollToEnd();
     }
+
+    // the new content has not been laid out yet when these fire
+    private void ScrollToEnd() =>
+        Dispatcher.UIThread.Post(Scroll.ScrollToEnd, DispatcherPriority.Background);
 }
