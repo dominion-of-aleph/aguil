@@ -1,0 +1,26 @@
+<Project>
+  <!-- One native library with the tree-sitter runtime and our grammars, named "tree-sitter" for
+       TreeSitter.DotNet. Runtime v0.26.3 matches TreeSitter.DotNet 1.3.0. Only tested on Linux. -->
+  <PropertyGroup>
+    <TreeSitterDir>$(MSBuildThisFileDirectory)</TreeSitterDir>
+    <TreeSitterLibrary Condition="$([MSBuild]::IsOSPlatform('Linux'))">libtree-sitter.so</TreeSitterLibrary>
+    <TreeSitterLibrary Condition="$([MSBuild]::IsOSPlatform('OSX'))">libtree-sitter.dylib</TreeSitterLibrary>
+    <TreeSitterLibrary Condition="$([MSBuild]::IsOSPlatform('Windows'))">tree-sitter.dll</TreeSitterLibrary>
+    <TreeSitterCompiler Condition="$([MSBuild]::IsOSPlatform('Windows'))">clang -shared</TreeSitterCompiler>
+    <TreeSitterCompiler Condition="!$([MSBuild]::IsOSPlatform('Windows'))">cc -shared -fPIC -fvisibility=hidden</TreeSitterCompiler>
+    <TreeSitterSources>$(TreeSitterDir)tree-sitter/lib/src/lib.c;$(TreeSitterDir)tree-sitter-elixir/src/parser.c;$(TreeSitterDir)tree-sitter-elixir/src/scanner.c</TreeSitterSources>
+  </PropertyGroup>
+
+  <Target Name="BuildTreeSitter" BeforeTargets="BeforeBuild"
+          Inputs="$(TreeSitterSources)" Outputs="$(IntermediateOutputPath)$(TreeSitterLibrary)">
+    <!-- on a first build this runs before the SDK creates obj/ -->
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <Exec Command="$(TreeSitterCompiler) -O2 -std=c11 -D_POSIX_C_SOURCE=200112L -D_DEFAULT_SOURCE -D_DARWIN_C_SOURCE -I&quot;$(TreeSitterDir)tree-sitter/lib/include&quot; -I&quot;$(TreeSitterDir)tree-sitter/lib/src&quot; -I&quot;$(TreeSitterDir)tree-sitter-elixir/src&quot; &quot;$(TreeSitterSources.Replace(';', '&quot; &quot;'))&quot; -o &quot;$(IntermediateOutputPath)$(TreeSitterLibrary)&quot;" />
+  </Target>
+
+  <ItemGroup>
+    <None Include="$(IntermediateOutputPath)$(TreeSitterLibrary)" Link="$(TreeSitterLibrary)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- each grammar's highlight query, loaded by Grammars.grammarFor -->
+    <EmbeddedResource Include="$(TreeSitterDir)tree-sitter-elixir/queries/highlights.scm" LogicalName="tree-sitter-elixir/highlights.scm" />
+  </ItemGroup>
+</Project>

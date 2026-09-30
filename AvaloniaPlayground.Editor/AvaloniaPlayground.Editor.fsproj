@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="HighlightTheme.fs"/>
+        <Compile Include="Grammars.fs"/>
+        <Compile Include="Snippet.fs"/>
+        <Compile Include="SnippetColorizer.fs"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia" Version="12.1.3"/>
+        <PackageReference Include="Avalonia.AvaloniaEdit" Version="12.0.0"/>
+        <!-- managed binding only: its native libraries are 65 MB per platform;
+             ../Native/tree-sitter.targets builds ours with just the grammars we use -->
+        <PackageReference Include="TreeSitter.DotNet" Version="1.3.0" ExcludeAssets="native"/>
+    </ItemGroup>
+
+    <Import Project="../Native/tree-sitter.targets"/>
+
+</Project>
