@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="AvaloniaPlayground.Core/AvaloniaPlayground.Core.fsproj" />
+  <Project Path="AvaloniaPlayground.Editor/AvaloniaPlayground.Editor.fsproj" />
   <Project Path="AvaloniaPlayground.Tests/AvaloniaPlayground.Tests.csproj" />
   <Project Path="AvaloniaPlayground/AvaloniaPlayground.csproj" />
 </Solution>

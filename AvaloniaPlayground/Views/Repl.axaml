@@ -6,9 +6,24 @@
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="AvaloniaPlayground.Views.Repl"
         xmlns:vm="using:AvaloniaPlayground.ViewModels"
+        xmlns:editor="using:AvaloniaPlayground.Editor"
         x:DataType="vm:ReplViewModel"
         FontSize="16"
         Title="Repl">
+    <Window.Styles>
+        <Style Selector="ae|TextEditor">
+            <Setter Property="FontFamily" Value="Fira Code,avares://AvaloniaPlayground/Assets/Fonts#Fira Code" />
+            <Setter Property="ShowLineNumbers" Value="False" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="editor:Code.Grammar" Value="elixir" />
+        </Style>
+        <Style Selector="Border.bar">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="0,6" />
+            <Setter Property="Background" Value="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+        </Style>
+    </Window.Styles>
     <Window.KeyBindings>
         <KeyBinding Gesture="Alt+OemSemicolon" Command="{Binding NextSolutionCommand}" />
         <KeyBinding Gesture="Alt+OemPeriod" Command="{Binding AllSolutionsCommand}" />
@@ -16,7 +31,7 @@
     <!-- Change AL-USER to include the branch -->
     <ScrollViewer Name="Scroll">
         <StackPanel>
-            <ListBox ItemsSource="{Binding History}" SelectedItem="{Binding Selected}"
+            <ListBox Name="Entries" ItemsSource="{Binding History}" SelectedItem="{Binding Selected}"
                      Background="Transparent" BorderThickness="0"
                      ScrollViewer.VerticalScrollBarVisibility="Disabled">
                 <ListBox.Styles>
@@ -44,21 +59,25 @@
                 </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:ReplEntry">
-                        <Border Classes="entry" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" BorderThickness="1" CornerRadius="4"
+                        <Border Classes="entry"
+                                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                                BorderThickness="1" CornerRadius="4"
                                 Padding="8" Margin="0,0,0,6" Background="Transparent">
                             <StackPanel>
-                                <SelectableTextBlock>
-                                    <Run Text="AL-USER> " Foreground="DarkSlateBlue" />
-                                    <Run Text="{Binding Source}" />
-                                </SelectableTextBlock>
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Left" Text="AL-USER> " Foreground="DarkSlateBlue" />
+                                    <ae:TextEditor IsReadOnly="True" editor:Code.Text="{Binding Source}" />
+                                </DockPanel>
                                 <!-- Change to a tab view -->
                                 <ContentControl Content="{Binding}">
                                     <ContentControl.DataTemplates>
                                         <DataTemplate x:DataType="vm:ReplSuccess">
                                             <StackPanel>
-                                                <SelectableTextBlock Foreground="LightSeaGreen" Text="{Binding Result}" />
+                                                <Border Classes="bar" />
+                                                <ae:TextEditor IsReadOnly="True" editor:Code.Text="{Binding Result}" />
                                                 <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
-                                                    <Button Command="{Binding PrevCommand}" ToolTip.Tip="Previous solution">
+                                                    <Button Command="{Binding PrevCommand}"
+                                                            ToolTip.Tip="Previous solution">
                                                         <PathIcon Width="10" Height="10"
                                                                   Data="M 10,0 L 10,12 L 1,6 Z" />
                                                     </Button>
@@ -72,7 +91,11 @@
                                             </StackPanel>
                                         </DataTemplate>
                                         <DataTemplate x:DataType="vm:ReplFailure">
-                                            <SelectableTextBlock Foreground="IndianRed" Text="{Binding Error}" />
+                                            <StackPanel>
+                                                <Border Classes="bar" Background="IndianRed" />
+                                                <ae:TextEditor IsReadOnly="True" editor:Code.Text="{Binding Error}"
+                                                               editor:Code.Grammar="{x:Null}" />
+                                            </StackPanel>
                                         </DataTemplate>
                                     </ContentControl.DataTemplates>
                                 </ContentControl>
@@ -84,10 +107,7 @@
 
             <DockPanel>
                 <TextBlock DockPanel.Dock="Left" Text="AL-USER> " Foreground="DarkSlateBlue" />
-                <ae:TextEditor Name="Input" ShowLineNumbers="False"
-                               FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
-                               
-                               VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled" />
+                <ae:TextEditor Name="Input" />
             </DockPanel>
         </StackPanel>
     </ScrollViewer>
