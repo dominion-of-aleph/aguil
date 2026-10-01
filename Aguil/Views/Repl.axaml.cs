@@ -1,8 +1,10 @@
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Aguil.ViewModels;
 
 namespace Aguil.Views;
@@ -45,7 +47,9 @@ public partial class Repl : Window
         // the editors handle the press (to place the caret), so ListBox never selects
         Entries.AddHandler(PointerPressedEvent, (_, e) =>
         {
-            if (e.Source is StyledElement { DataContext: ReplEntry entry })
+            if (e.Source is Control source && source.GetVisualAncestors().Prepend(source)
+                    .OfType<Control>().Select(control => control.DataContext)
+                    .OfType<ReplEntry>().FirstOrDefault() is { } entry)
                 vm.Selected = entry;
         }, handledEventsToo: true);
     }

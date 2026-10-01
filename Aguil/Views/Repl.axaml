@@ -24,6 +24,12 @@
             <Setter Property="Margin" Value="0,6" />
             <Setter Property="Background" Value="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
         </Style>
+        <Style Selector="Border.binding">
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.binding:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundAccentBrush}" />
+        </Style>
     </Window.Styles>
     <Window.KeyBindings>
         <KeyBinding Gesture="Alt+OemSemicolon" Command="{Binding NextSolutionCommand}" />
@@ -75,7 +81,7 @@
                                         <DataTemplate x:DataType="vm:ReplSuccess">
                                             <StackPanel>
                                                 <Border Classes="bar" />
-                                                <ae:TextEditor IsReadOnly="True" editor:Code.Text="{Binding Result}" />
+                                                <StackPanel editor:ResultView.Result="{Binding Result}" />
                                                 <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
                                                     <Button Command="{Binding PrevCommand}"
                                                             ToolTip.Tip="Previous solution">
