@@ -5,12 +5,13 @@ Avalonia front end for AL. XAML-facing code is C# (`Aguil`); everything else is 
 
 ## Run it before you explain or change it
 
-Build, then explore the editor in F# Interactive:
+Build, then run the editor examples through their facts:
 
     dotnet build Aguil.slnx
-    dotnet fsi --use:Aguil.Editor.Tests/Examples.fsx
+    dotnet test Aguil.Editor.Tests/Aguil.Editor.Tests.fsproj --logger "console;verbosity=detailed"
 
-It prints every example, then leaves a prompt: `show (docHeredoc ());;`, `Styler.style ...`.
+The compiled functions in `Examples.fs` return data for interactive exploration;
+`Facts.fs` prints their results and asserts on them.
 
 - Check a claim by running an example, and show its real output. Never present made-up data as output.
 - New behaviour gets a composable example in `Examples.fs` (returns data, builds on earlier ones)
