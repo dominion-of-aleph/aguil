@@ -1,3 +1,4 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -15,9 +16,31 @@ public partial class ReplViewModel : ViewModelBase
 
     [ObservableProperty] public partial string Source { get; set; } = "";
 
+    // which earlier input PreviousInput/NextInput show (null: a new one), and the new one put aside
+    private int? _recall;
+    private string _draft = "";
+
+    [RelayCommand]
+    private void PreviousInput()
+    {
+        if (History.Count == 0) return;
+        if (_recall is null) _draft = Source;
+        _recall = Math.Max((_recall ?? History.Count) - 1, 0);
+        Source = History[_recall.Value].Source;
+    }
+
+    [RelayCommand]
+    private void NextInput()
+    {
+        if (_recall is null) return;
+        _recall = _recall + 1 < History.Count ? _recall + 1 : null;
+        Source = _recall is { } index ? History[index].Source : _draft;
+    }
+
     [RelayCommand]
     private async Task Run()
     {
+        _recall = null;
         var source = Source;
         Source = "";
         ReplEntry entry;
