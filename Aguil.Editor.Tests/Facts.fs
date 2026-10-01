@@ -82,3 +82,40 @@ type Facts(output: ITestOutputHelper) =
     [<Fact>]
     member _.UnknownGrammar() =
         Assert.Throws<KeyNotFoundException>(fun () -> Grammars.grammarFor "elixr" |> ignore) |> ignore
+
+    [<Fact>]
+    member _.EditorCommandNames() =
+        let names = see (editorCommandNames ())
+        Assert.Contains<string>("MoveToLineEnd", names)
+        Assert.Contains<string>("Paste", names)
+
+    [<Fact>]
+    member _.LineKeys() =
+        Assert.Equal<(string * int * int * string) list>(
+            [ "Control+E", 11, 0, "hello world"; "Control+A", 0, 0, "hello world" ],
+            see (lineKeys ())
+        )
+
+    [<Fact>]
+    member _.ContextCommand() = Assert.Equal(2, see (contextCommand ()))
+
+    [<Fact>]
+    member _.DefaultMovement() =
+        Assert.Equal<int list>(
+            [ 15; 3; 11; 0; 1; 6; 0; 0 ],
+            see (defaultMovement ()) |> List.map (fun (_, caret, _, _) -> caret)
+        )
+
+    [<Fact>]
+    member _.DefaultDeletion() =
+        Assert.Equal<string list>(
+            [ "helo world"; "helworld" ],
+            see (defaultDeletion ()) |> List.map (fun (_, _, _, text) -> text)
+        )
+
+    [<Fact>]
+    member _.MarkSelection() =
+        Assert.Equal<(int * int) list>(
+            [ 3, 0; 4, 1; 5, 2; 6, 3; 6, 0; 6, 0; 7, 1; 8, 0; 9, 0 ],
+            see (markSelection ()) |> List.map (fun (_, caret, selection, _) -> caret, selection)
+        )

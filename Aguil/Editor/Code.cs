@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using AvaloniaEdit;
@@ -15,6 +17,14 @@ public static class Code
     public static readonly AttachedProperty<string?> GrammarProperty =
         AvaloniaProperty.RegisterAttached<TextEditor, string?>("Grammar", typeof(Code));
 
+    // keys to action names, see Keymaps
+    public static readonly AttachedProperty<IReadOnlyDictionary<string, string>?> KeymapProperty =
+        AvaloniaProperty.RegisterAttached<TextEditor, IReadOnlyDictionary<string, string>?>("Keymap", typeof(Code));
+
+    // removes the installed keymap
+    private static readonly AttachedProperty<IDisposable?> KeymapHandlerProperty =
+        AvaloniaProperty.RegisterAttached<TextEditor, IDisposable?>("KeymapHandler", typeof(Code));
+
     // only exists while the editor is loaded; rebuilt when its document changes
     private static readonly AttachedProperty<SnippetColorizer?> ColorizerProperty =
         AvaloniaProperty.RegisterAttached<TextEditor, SnippetColorizer?>("Colorizer", typeof(Code));
@@ -23,6 +33,12 @@ public static class Code
     {
         TextProperty.Changed.AddClassHandler<TextEditor>((editor, _) => editor.Text = GetText(editor) ?? "");
         GrammarProperty.Changed.AddClassHandler<TextEditor>((editor, _) => Rebuild(editor));
+        KeymapProperty.Changed.AddClassHandler<TextEditor>((editor, _) =>
+        {
+            editor.GetValue(KeymapHandlerProperty)?.Dispose();
+            editor.SetValue(KeymapHandlerProperty,
+                GetKeymap(editor) is { } keymap ? Keymaps.install(editor.TextArea, keymap) : null);
+        });
         TextEditor.DocumentProperty.Changed.AddClassHandler<TextEditor>((editor, _) => Rebuild(editor));
         Control.LoadedEvent.AddClassHandler<TextEditor>((editor, _) => Rebuild(editor));
         Control.UnloadedEvent.AddClassHandler<TextEditor>((editor, _) => Rebuild(editor));
@@ -39,6 +55,11 @@ public static class Code
     public static void SetText(TextEditor editor, string? value) => editor.SetValue(TextProperty, value);
 
     public static string? GetGrammar(TextEditor editor) => editor.GetValue(GrammarProperty);
+
+    public static IReadOnlyDictionary<string, string>? GetKeymap(TextEditor editor) => editor.GetValue(KeymapProperty);
+
+    public static void SetKeymap(TextEditor editor, IReadOnlyDictionary<string, string>? value) =>
+        editor.SetValue(KeymapProperty, value);
 
     public static void SetGrammar(TextEditor editor, string? value) => editor.SetValue(GrammarProperty, value);
 
