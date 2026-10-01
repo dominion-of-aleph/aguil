@@ -91,31 +91,81 @@ type Facts(output: ITestOutputHelper) =
 
     [<Fact>]
     member _.LineKeys() =
-        Assert.Equal<(string * int * int * string) list>(
-            [ "Control+E", 11, 0, "hello world"; "Control+A", 0, 0, "hello world" ],
-            see (lineKeys ())
+        Assert.Equal<string list>(
+            [ "hello world|"; "|hello world" ],
+            see (lineKeys ()) |> List.map snd
         )
 
     [<Fact>]
-    member _.ContextCommand() = Assert.Equal(2, see (contextCommand ()))
+    member _.ContextCommand() =
+        Assert.Equal<string list>(
+            [ "PreviousInput"; "PreviousInput"; "Cancel" ],
+            see (contextCommand ())
+        )
 
     [<Fact>]
     member _.DefaultMovement() =
-        Assert.Equal<int list>(
-            [ 15; 3; 11; 0; 1; 6; 0; 0 ],
-            see (defaultMovement ()) |> List.map (fun (_, caret, _, _) -> caret)
+        Assert.Equal<string list>(
+            [
+                "hello world\nsec|ond line"
+                "hel|lo world\nsecond line"
+                "hello world|\nsecond line"
+                "|hello world\nsecond line"
+                "h|ello world\nsecond line"
+                "hello |world\nsecond line"
+                "|hello world\nsecond line"
+                "|hello world\nsecond line"
+            ],
+            see (defaultMovement ()) |> List.map snd
         )
 
     [<Fact>]
     member _.DefaultDeletion() =
         Assert.Equal<string list>(
-            [ "helo world"; "helworld" ],
-            see (defaultDeletion ()) |> List.map (fun (_, _, _, text) -> text)
+            [ "hel|o world"; "hel|world" ],
+            see (defaultDeletion ()) |> List.map snd
         )
 
     [<Fact>]
     member _.MarkSelection() =
-        Assert.Equal<(int * int) list>(
-            [ 3, 0; 4, 1; 5, 2; 6, 3; 6, 0; 6, 0; 7, 1; 8, 0; 9, 0 ],
-            see (markSelection ()) |> List.map (fun (_, caret, selection, _) -> caret, selection)
+        Assert.Equal<string list>(
+            [
+                "hel|lo world, again"
+                "hel[l]|o world, again"
+                "hel[lo ]|world, again"
+                "hello |world, again"
+                "hello w|orld, again"
+                "hello w|orld, again"
+                "hello w[o]|rld, again"
+                "hello wo|rld, again"
+                "hello wor|ld, again"
+                "hello wor|ld, again"
+                "hello wor[l]|d, again"
+                "hello world|, again"
+                "hello world,| again"
+            ],
+            see (markSelection ()) |> List.map snd
+        )
+
+    [<Fact>]
+    member _.ResultSelection() =
+        let result = see (resultSelection ())
+        use preview = result.Preview
+        let text = (resultContext ()).Pretty 80
+        Assert.Equal(text, String.concat "\n" result.Rows)
+        Assert.True(result.BindingRetained)
+        Assert.Equal("42", result.Dragged)
+        Assert.Equal("42", result.Copied)
+
+        Assert.Equal<string list>(
+            [ "|x = 42"; "x = 42|"; "x = 42|"; "x = 4|[2]"; "x = 4|2" ],
+            result.Keys
+        )
+
+        Assert.Equal(text, result.ButtonCopy)
+        Assert.Equal("|y : {1, 5}", result.UpdatedKey)
+
+        Assert.Equal<string list>(
+            [ "y : {1, 5}"; ":saved => \"value\""; "context-2" ],
+            result.Updated
         )

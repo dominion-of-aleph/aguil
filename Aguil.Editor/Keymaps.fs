@@ -22,30 +22,29 @@ let defaults: IReadOnlyDictionary<string, string> =
         "Alt+B", "MoveLeftByWord"
         "Ctrl+D", "Delete"
         "Alt+D", "DeleteNextWord"
-        "Ctrl+Space", "SetMark"
-        "Ctrl+G", "ClearMark"
+        "Ctrl+Space", "ToggleMark"
+        "Ctrl+G", "Cancel"
         "Alt+P", "PreviousInput"
         "Alt+N", "NextInput"
     ]
 
-/// AvaloniaEdit's own commands by name. Lazy, as building them needs a running Avalonia.
+/// AvaloniaEdit's own commands by name.
 let editorCommands =
-    lazy
-        ([
-            typeof<EditingCommands>
-            typeof<ApplicationCommands>
-            typeof<AvaloniaEditCommands>
-         ]
-         |> Seq.collect (fun t -> t.GetProperties(BindingFlags.Public ||| BindingFlags.Static))
-         |> Seq.map (fun property -> property.GetValue null :?> RoutedCommand)
-         |> Seq.distinctBy _.Name
-         |> Seq.map (fun command -> command.Name, command)
-         |> readOnlyDict)
+    [
+        typeof<EditingCommands>
+        typeof<ApplicationCommands>
+        typeof<AvaloniaEditCommands>
+    ]
+    |> Seq.collect (fun t -> t.GetProperties(BindingFlags.Public ||| BindingFlags.Static))
+    |> Seq.map (fun property -> property.GetValue null :?> RoutedCommand)
+    |> Seq.distinctBy _.Name
+    |> Seq.map (fun command -> command.Name, command)
+    |> readOnlyDict
 
 /// Runs an AvaloniaEdit command, else the data context's command of that name (PreviousInput runs
 /// PreviousInputCommand). False when there's neither.
 let private run (area: TextArea) (action: string) =
-    match editorCommands.Value.TryGetValue action with
+    match editorCommands.TryGetValue action with
     | true, command ->
         command.Execute(null, area)
         true
@@ -76,8 +75,7 @@ let private modifierKeys =
         Key.RWin
     ]
 
-/// Handles the keymap's keys before AvaloniaEdit does, so they can replace its own. Dispose to remove.
-/// While a mark is set (SetMark), Move actions select instead; any other key ends it.
+/// Handles the keymap's keys before AvaloniaEdit does, so they can replace its own.
 let install (area: TextArea) (keymap: IReadOnlyDictionary<string, string>) =
     let bindings = [ for KeyValue(key, action) in keymap -> KeyGesture.Parse key, action ]
     let mutable marking = false
@@ -86,9 +84,14 @@ let install (area: TextArea) (keymap: IReadOnlyDictionary<string, string>) =
         InputElement.KeyDownEvent,
         EventHandler<KeyEventArgs>(fun _ e ->
             match bindings |> List.tryFind (fun (gesture, _) -> gesture.Matches e) with
-            | Some(_, ("SetMark" | "ClearMark" as action)) ->
-                marking <- action = "SetMark"
+            | Some(_, "ToggleMark") ->
+                marking <- not marking
                 area.ClearSelection()
+                e.Handled <- true
+            | Some(_, "Cancel") ->
+                marking <- false
+                area.ClearSelection()
+                run area "Cancel" |> ignore
                 e.Handled <- true
             | Some(_, action) when marking && action.StartsWith "Move" ->
                 e.Handled <- run area ("Select" + action.Substring "Move".Length)
