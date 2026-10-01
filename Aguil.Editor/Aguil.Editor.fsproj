@@ -9,6 +9,7 @@
         <Compile Include="Grammars.fs"/>
         <Compile Include="Snippet.fs"/>
         <Compile Include="SnippetColorizer.fs"/>
+        <Compile Include="Keymaps.fs"/>
     </ItemGroup>
 
     <ItemGroup>
