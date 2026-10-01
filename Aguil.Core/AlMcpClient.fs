@@ -63,6 +63,21 @@ type AlMcpClient(url: string) =
             |> Result.map (fun tup -> AlMap(Map.ofSeq tup))
         | other -> Error(UnknownType other)
 
+    // a failed run carries AL's reason, so show its message; compile errors are only text
+    let failureMessage (result: JsonElement) =
+        let text () = result.GetProperty("content").[0].GetProperty("text").GetString()
+
+        match result.GetProperty("structuredContent").TryGetProperty "reason" with
+        | true, reason ->
+            match mcp_decode_to_term reason with
+            | Ok(AlMap fields) ->
+                match fields.TryFind(AlAtom "message") with
+                | Some(AlText message) -> message
+                | _ -> AlValue.Pretty(80, AlMap fields)
+            | Ok other -> AlValue.Pretty(80, other)
+            | Error _ -> text ()
+        | _ -> text ()
+
     let callTool (toolName: string) (arguments: obj) =
         task {
             let request = {|
@@ -81,7 +96,7 @@ type AlMcpClient(url: string) =
             let result = json.GetProperty "result"
 
             if result.GetProperty("isError").GetBoolean() then
-                raise (AlException(result.GetProperty("content").[0].GetProperty("text").GetString()))
+                raise (AlException(failureMessage result))
             // non structured content is for the LLMs
             return result.GetProperty "structuredContent"
         }
