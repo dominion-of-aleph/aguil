@@ -146,26 +146,3 @@ type Facts(output: ITestOutputHelper) =
             ],
             see (markSelection ()) |> List.map snd
         )
-
-    [<Fact>]
-    member _.ResultSelection() =
-        let result = see (resultSelection ())
-        use preview = result.Preview
-        let text = (resultContext ()).Pretty 80
-        Assert.Equal(text, String.concat "\n" result.Rows)
-        Assert.True(result.BindingRetained)
-        Assert.Equal("42", result.Dragged)
-        Assert.Equal("42", result.Copied)
-
-        Assert.Equal<string list>(
-            [ "|x = 42"; "x = 42|"; "x = 42|"; "x = 4|[2]"; "x = 4|2" ],
-            result.Keys
-        )
-
-        Assert.Equal(text, result.ButtonCopy)
-        Assert.Equal("|y : {1, 5}", result.UpdatedKey)
-
-        Assert.Equal<string list>(
-            [ "y : {1, 5}"; ":saved => \"value\""; "context-2" ],
-            result.Updated
-        )

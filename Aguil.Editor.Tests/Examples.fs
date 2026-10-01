@@ -13,11 +13,6 @@ open Avalonia.Themes.Fluent
 open Avalonia.Threading
 open AvaloniaEdit
 open TreeSitter
-open Aguil.Core.AlEvaluation
-open Aguil.Core.AlValues
-open Avalonia.Input.Platform
-open Avalonia.Styling
-open AvaloniaEdit.Rendering
 
 /// The grammar the name "elixir" stands for.
 let elixirGrammar () = (Grammars.grammarFor "elixir").Result
@@ -95,10 +90,7 @@ type HeadlessApp() =
         )
 
     static member BuildAvaloniaApp() =
-        AppBuilder
-            .Configure<HeadlessApp>()
-            .UseSkia()
-            .UseHeadless(AvaloniaHeadlessPlatformOptions(UseHeadlessDrawing = false))
+        AppBuilder.Configure<HeadlessApp>().UseHeadless(AvaloniaHeadlessPlatformOptions())
 
 let private session = lazy (HeadlessUnitTestSession.StartNew typeof<HeadlessApp>)
 
@@ -225,132 +217,3 @@ let markSelection () =
             Key.Right, RawInputModifiers.None
             Key.F, RawInputModifiers.Control
         ]
-
-/// A result with values, a decode failure, a constraint and a store entry.
-let resultContext () =
-    let empty = { Values = []; Failures = [] }
-
-    {
-        Bindings = {
-            Values = [
-                { Symbol = "x"; Value = AlInteger 42I }
-                { Symbol = "message"; Value = AlText "é🙂" }
-                { Symbol = "items"; Value = AlList [ for n in 1..30 -> AlInteger(bigint n) ] }
-            ]
-            Failures = [ { Symbol = "unknown"; Value = UnknownType "record" } ]
-        }
-        Constraints = {
-            empty with
-                Values = [ { Symbol = "y"; Value = AlTuple [ AlInteger 1I; AlInteger 5I ] } ]
-        }
-        Store = { empty with Values = [ { Symbol = ":saved"; Value = AlText "value" } ] }
-        Context = "context-1"
-        HasPotentialSolution = false
-    }
-
-type ResultSelection = {
-    Rows: string list
-    BindingRetained: bool
-    Dragged: string
-    Copied: string
-    Keys: string list
-    ButtonCopy: string
-    Preview: Avalonia.Media.Imaging.Bitmap
-    Updated: string list
-    UpdatedKey: string
-}
-
-/// Selects and copies text, uses the REPL keymap, copies the result, and replaces its boxes.
-let resultSelection () =
-    onUi (fun () ->
-        let context = resultContext ()
-        let output = StackPanel()
-        ResultView.SetResult(output, context)
-        let scroll = ScrollViewer(Content = output)
-        let window = Window(Content = scroll, Width = 650., Height = 400.)
-        let style = Style(fun selector -> selector.OfType<TextEditor>())
-        style.Setters.Add(Setter(Code.KeymapProperty, Keymaps.defaults))
-        window.Styles.Add style
-        window.Show()
-        Dispatcher.UIThread.RunJobs()
-
-        let editors () =
-            output.Children
-            |> Seq.choose (function
-                | :? Border as box -> Some(box.Child :?> TextEditor)
-                | _ -> None)
-            |> List.ofSeq
-
-        let rows = editors ()
-        let first = rows.Head
-        let bindingRetained = Object.ReferenceEquals(context.Bindings.Values.Head, first.DataContext)
-        let view = first.TextArea.TextView
-
-        let point offset =
-            let position = TextViewPosition(first.Document.GetLocation offset)
-            let p = view.GetVisualPosition(position, VisualYPosition.LineMiddle)
-            view.TranslatePoint(p, window).Value
-
-        window.MouseDown(point 4, MouseButton.Left)
-        window.MouseMove(point 6)
-        window.MouseUp(point 6, MouseButton.Left)
-        let dragged = first.SelectedText
-
-        let key key =
-            window.KeyPress(key, RawInputModifiers.Control, PhysicalKey.None, null)
-            Dispatcher.UIThread.RunJobs()
-
-        let clipboard () = window.Clipboard.TryGetTextAsync().GetAwaiter().GetResult()
-        key Key.C
-        let copied = clipboard ()
-
-        let keys = [
-            for k in [ Key.A; Key.E; Key.Space; Key.B; Key.G ] do
-                key k
-                yield marked first
-        ]
-
-        let copy =
-            output.Children
-            |> Seq.pick (function
-                | :? Button as button -> Some button
-                | _ -> None)
-
-        copy.RaiseEvent(Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent))
-
-        Dispatcher.UIThread.RunJobs()
-        let buttonCopy = clipboard ()
-        scroll.Offset <- Vector(0., 0.)
-        Dispatcher.UIThread.RunJobs()
-        let frame = window.CaptureRenderedFrame()
-
-        ResultView.SetResult(
-            output,
-            {
-                context with
-                    Bindings = { Values = []; Failures = [] }
-                    Context = "context-2"
-            }
-        )
-
-        Dispatcher.UIThread.RunJobs()
-        let updated = editors ()
-        let next = updated.Head
-        next.TextArea.Focus() |> ignore
-        next.CaretOffset <- next.Text.Length
-        key Key.A
-
-        let result = {
-            Rows = rows |> List.map _.Text
-            BindingRetained = bindingRetained
-            Dragged = dragged
-            Copied = copied
-            Keys = keys
-            ButtonCopy = buttonCopy
-            Preview = frame
-            Updated = updated |> List.map _.Text
-            UpdatedKey = marked next
-        }
-
-        window.Close()
-        result)

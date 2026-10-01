@@ -2,6 +2,7 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -52,6 +53,12 @@ public partial class Repl : Window
                     .OfType<ReplEntry>().FirstOrDefault() is { } entry)
                 vm.Selected = entry;
         }, handledEventsToo: true);
+    }
+
+    private async void CopyResult(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: ReplSuccess entry } && Clipboard is { } clipboard)
+            await clipboard.SetTextAsync(entry.Result.Pretty(80));
     }
 
     // the new content has not been laid out yet when these fire

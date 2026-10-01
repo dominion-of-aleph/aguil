@@ -1,7 +1,6 @@
 using Aguil.Core;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input.Platform;
 using AvaloniaEdit;
 
 namespace Aguil.Editor;
@@ -45,19 +44,5 @@ public static class ResultView
         Section(" = ", result.Bindings);
         Section(" : ", result.Constraints);
         Section(" => ", result.Store);
-        Box(result, result.Context);
-
-        var copy = new Button
-        {
-            Content = "Copy all",
-            Focusable = false,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left
-        };
-        copy.Click += async (_, _) =>
-        {
-            if (TopLevel.GetTopLevel(panel)?.Clipboard is { } clipboard)
-                await clipboard.SetTextAsync(result.Pretty(80));
-        };
-        panel.Children.Add(copy);
     }
 }

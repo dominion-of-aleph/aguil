@@ -30,6 +30,10 @@
         <Style Selector="Border.binding:pointerover">
             <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundAccentBrush}" />
         </Style>
+        <Style Selector="TabItem">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="6,2" />
+        </Style>
     </Window.Styles>
     <Window.KeyBindings>
         <KeyBinding Gesture="Alt+OemSemicolon" Command="{Binding NextSolutionCommand}" />
@@ -75,28 +79,40 @@
                                     <TextBlock DockPanel.Dock="Left" Text="AL-USER> " Foreground="DarkSlateBlue" />
                                     <ae:TextEditor IsReadOnly="True" editor:Code.Text="{Binding Source}" />
                                 </DockPanel>
-                                <!-- Change to a tab view -->
+
                                 <ContentControl Content="{Binding}">
+                                    <!-- Include this in a tab view, failures of the protocol should be an object -->
                                     <ContentControl.DataTemplates>
+                                        <!-- Change to a tab view -->
                                         <DataTemplate x:DataType="vm:ReplSuccess">
-                                            <StackPanel>
-                                                <Border Classes="bar" />
-                                                <StackPanel editor:ResultView.Result="{Binding Result}" />
-                                                <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
-                                                    <Button Command="{Binding PrevCommand}"
-                                                            ToolTip.Tip="Previous solution">
-                                                        <PathIcon Width="10" Height="10"
-                                                                  Data="M 10,0 L 10,12 L 1,6 Z" />
-                                                    </Button>
-                                                    <Button Command="{Binding NextCommand}" ToolTip.Tip="Next solution">
-                                                        <PathIcon Width="10" Height="10"
-                                                                  Data="M 2,0 L 2,12 L 11,6 Z" />
-                                                    </Button>
-                                                    <TextBlock Text="{Binding Position}" VerticalAlignment="Center"
-                                                               Foreground="DimGray" />
-                                                </StackPanel>
-                                            </StackPanel>
+                                            <TabControl Padding="0">
+                                                <TabItem Header="Raw" FontSize="17">
+                                                    <StackPanel>
+                                                        <StackPanel editor:ResultView.Result="{Binding Result}" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="4"
+                                                                    Margin="0,4,0,0">
+                                                            <Button Command="{Binding PrevCommand}"
+                                                                    ToolTip.Tip="Previous solution">
+                                                                <PathIcon Width="10" Height="10"
+                                                                          Data="M 10,0 L 10,12 L 1,6 Z" />
+                                                            </Button>
+                                                            <Button Command="{Binding NextCommand}"
+                                                                    ToolTip.Tip="Next solution">
+                                                                <PathIcon Width="10" Height="10"
+                                                                          Data="M 2,0 L 2,12 L 11,6 Z" />
+                                                            </Button>
+                                                            <TextBlock Text="{Binding Position}"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="DimGray" />
+                                                            <Button Content="Copy all" Click="CopyResult"
+                                                                    Focusable="False" Padding="8,2"
+                                                                    VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </TabItem>
+                                            </TabControl>
                                         </DataTemplate>
+
                                         <DataTemplate x:DataType="vm:ReplFailure">
                                             <StackPanel>
                                                 <Border Classes="bar" Background="IndianRed" />
