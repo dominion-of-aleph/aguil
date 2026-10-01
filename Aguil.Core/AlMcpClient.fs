@@ -11,6 +11,10 @@ type AlException(message: string) =
     inherit Exception(message)
 
 type AlMcpClient(url: string) =
+    // AL keeps every source it evaluated, with where it came from
+    static let previousInputsQuery =
+        "findall([tx, text, origin], inputs) do\n  vm_transaction_source(tx, text, origin)\nend"
+
     let http = new HttpClient()
     let mutable currentId = 0
 
@@ -127,6 +131,26 @@ type AlMcpClient(url: string) =
         task {
             let! content = callTool "nextSolution" (box {| context = context |})
             return grab_context content
+        }
+
+    /// Every input evaluated before, oldest first: AL's own runs and this query are left out.
+    member this.PreviousInputs() =
+        task {
+            let! result = this.QueryAl(previousInputsQuery, null)
+
+            let input row =
+                match row with
+                | AlList [ _; AlText text; AlMap origin ] when
+                    origin.TryFind(AlAtom "kind") = Some(AlAtom "eval_source")
+                    && text <> previousInputsQuery
+                    ->
+                    Some text
+                | _ -> None
+
+            return
+                match result.Bindings.Values |> List.tryFind (fun b -> b.Symbol = "inputs") with
+                | Some { Value = AlList rows } -> List.choose input rows
+                | _ -> []
         }
 
     member _.DebugGrab(source: string, branch: string) =

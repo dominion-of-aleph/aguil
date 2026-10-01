@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 using Aguil.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -16,25 +18,40 @@ public partial class ReplViewModel : ViewModelBase
 
     [ObservableProperty] public partial string Source { get; set; } = "";
 
-    // which earlier input PreviousInput/NextInput show (null: a new one), and the new one put aside
+    // what PreviousInput/NextInput walk, oldest first: earlier sessions' inputs from AL, then this one's
+    public List<string> Inputs { get; } = [];
+
+    public async Task LoadPreviousInputs()
+    {
+        try
+        {
+            Inputs.InsertRange(0, await _al.PreviousInputs());
+        }
+        catch (Exception e) when (e is AlException or HttpRequestException)
+        {
+            // AL isn't running: start without earlier inputs
+        }
+    }
+
+    // which input PreviousInput/NextInput show (null: a new one), and the new one put aside
     private int? _recall;
     private string _draft = "";
 
     [RelayCommand]
     private void PreviousInput()
     {
-        if (History.Count == 0) return;
+        if (Inputs.Count == 0) return;
         if (_recall is null) _draft = Source;
-        _recall = Math.Max((_recall ?? History.Count) - 1, 0);
-        Source = History[_recall.Value].Source;
+        _recall = Math.Max((_recall ?? Inputs.Count) - 1, 0);
+        Source = Inputs[_recall.Value];
     }
 
     [RelayCommand]
     private void NextInput()
     {
         if (_recall is null) return;
-        _recall = _recall + 1 < History.Count ? _recall + 1 : null;
-        Source = _recall is { } index ? History[index].Source : _draft;
+        _recall = _recall + 1 < Inputs.Count ? _recall + 1 : null;
+        Source = _recall is { } index ? Inputs[index] : _draft;
     }
 
     [RelayCommand]
@@ -42,6 +59,7 @@ public partial class ReplViewModel : ViewModelBase
     {
         _recall = null;
         var source = Source;
+        Inputs.Add(source);
         Source = "";
         ReplEntry entry;
         // Replace with a real sum type logic

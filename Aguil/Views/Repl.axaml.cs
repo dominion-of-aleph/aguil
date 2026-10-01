@@ -14,6 +14,7 @@ public partial class Repl : Window
         InitializeComponent();
         var vm = new ReplViewModel();
         DataContext = vm;
+        _ = vm.LoadPreviousInputs();
 
         Input.TextChanged += (_, _) =>
         {
