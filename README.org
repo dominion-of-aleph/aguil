@@ -1,12 +1,12 @@
 * Using the codebase interactively
 
 #+begin_src F#
-  dotnet fsi --use:AvaloniaPlayground.Editor.Tests/Examples.fsx
+  dotnet fsi --use:Aguil.Editor.Tests/Examples.fsx
 
 
   let grammar = elixirGrammar();;
 
-  let res = AvaloniaPlayground.Editor.Styler.style parser grammar.Highlights "def foo(x) do x + 3 end ";;
+  let res = Aguil.Editor.Styler.style parser grammar.Highlights "def foo(x) do x + 3 end ";;
   describe ("def foo(x) x + 3 end", res);;
 
   // Or equivalently

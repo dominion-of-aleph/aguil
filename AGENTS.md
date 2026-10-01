@@ -1,14 +1,14 @@
 # aguil
 
-Avalonia front end for AL. XAML-facing code is C# (`AvaloniaPlayground`); everything else is F#
-(`AvaloniaPlayground.Core`, `AvaloniaPlayground.Editor`).
+Avalonia front end for AL. XAML-facing code is C# (`Aguil`); everything else is F#
+(`Aguil.Core`, `Aguil.Editor`).
 
 ## Run it before you explain or change it
 
 Build, then explore the editor in F# Interactive:
 
-    dotnet build AvaloniaPlayground.slnx
-    dotnet fsi --use:AvaloniaPlayground.Editor.Tests/Examples.fsx
+    dotnet build Aguil.slnx
+    dotnet fsi --use:Aguil.Editor.Tests/Examples.fsx
 
 It prints every example, then leaves a prompt: `show (docHeredoc ());;`, `Styler.style ...`.
 
@@ -21,7 +21,7 @@ It prints every example, then leaves a prompt: `show (docHeredoc ());;`, `Styler
 ## Housekeeping
 
 - Format what you touch: `dotnet tool exec -y fantomas <files>` for F#, `dotnet format` for C#.
-- Test: `dotnet test AvaloniaPlayground.slnx`.
+- Test: `dotnet test Aguil.slnx`.
 - `Native/` holds upstream sources merged as git subtrees from release tags; update by merging the
   next tag. No submodules.
 - Short names, one-line comments.
