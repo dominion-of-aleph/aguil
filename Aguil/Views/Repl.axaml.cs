@@ -23,7 +23,11 @@ public partial class Repl : Window
         vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(vm.Source) && Input.Text != vm.Source)
+            {
                 Input.Text = vm.Source;
+                // a recalled input is edited from its end
+                Input.CaretOffset = Input.Text.Length;
+            }
         };
 
         Input.AddHandler(KeyDownEvent, (_, e) =>
