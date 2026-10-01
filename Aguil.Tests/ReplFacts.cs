@@ -9,8 +9,7 @@ public static class ReplExamples
     public static List<string> RecallWalk()
     {
         var repl = new ReplViewModel();
-        foreach (var source in new[] { "a = 1", "b = 2", "c = 3" })
-            repl.History.Add(new ReplFailure(source, ""));
+        repl.Inputs.AddRange(["a = 1", "b = 2", "c = 3"]);
         repl.Source = "draft";
 
         var previous = repl.PreviousInputCommand;
