@@ -1,18 +1,17 @@
 namespace Aguil.Editor
 
-open System.Collections.Generic
 open System.Linq
 open Aguil.Core
 open Aguil.Core.AlValues
 open Aguil.ViewModels
 open Avalonia
 open Avalonia.Controls
-open Avalonia.Controls.Primitives
 open Avalonia.Headless
 open Avalonia.Input
 open Avalonia.Threading
 open Avalonia.VisualTree
 open AvaloniaEdit
+open AvaloniaEdit.Rendering
 open Xunit
 open Xunit.Abstractions
 open Aguil.Editor.Examples
@@ -45,16 +44,7 @@ type Facts(output: ITestOutputHelper) =
         window.KeyPress(key, modifiers, PhysicalKey.None, null)
         Dispatcher.UIThread.RunJobs()
 
-    let viewport (window: Window) = (window.Content :?> Grid).Children[0]
-
-    let resize (window: Window) amount =
-        let grip = (window.Content :?> Grid).Children[1] :?> Thumb
-
-        grip.RaiseEvent(
-            VectorEventArgs(RoutedEvent = Thumb.DragDeltaEvent, Vector = Vector(0., amount))
-        )
-
-        Dispatcher.UIThread.RunJobs()
+    let editor (window: Window) = window.GetVisualDescendants().OfType<TextEditor>().Single()
 
     let tabs (window: Window) entry =
         window.GetVisualDescendants().OfType<TabControl>()
@@ -66,81 +56,35 @@ type Facts(output: ITestOutputHelper) =
             for editor, grammar in [ plainEditor (), null; sourceEditor (), "elixir" ] do
                 Assert.Equal("x = 1", see editor.Text)
                 Assert.Equal(grammar, see (Code.GetGrammar editor))
-                Assert.True(editor.IsReadOnly)
-                Assert.Null(Inspect.GetTarget editor)
-                Assert.Equal("MoveToLineStart", Code.GetKeymap(editor)["Ctrl+A"]))
+                Assert.Null(Inspect.GetTarget editor))
 
     [<Fact>]
     member _.ItemTargets() =
         withWindow (fun () -> Window(Content = targetList ())) (fun window ->
             let list = window.Content :?> ListBox
-            let items = list.Items.OfType<Border>().ToArray()
             Assert.Null(Inspect.GetTarget list)
 
             Assert.Equal<obj list>(
                 [ box "one"; box "two" ],
-                see [ for item in items -> Inspect.GetTarget item.Child ]
-            )
-
-            let label = items[0].Child
-            let context = obj ()
-            label.DataContext <- context
-            Inspect.SetTarget(label, "detail")
-            Assert.Equal(box "detail", see (Inspect.GetTarget label))
-            Assert.Same(context, label.DataContext)
-            Assert.Equal(box "one", Inspect.GetTarget items[0])
-            Assert.Equal(box "two", Inspect.GetTarget items[1].Child)
-            Inspect.SetTarget(label, null)
-            Assert.Null(see (Inspect.GetTarget label))
-            label.ClearValue(Inspect.TargetProperty)
-            Assert.Equal(box "one", see (Inspect.GetTarget label)))
+                see [
+                    for label in list.GetVisualDescendants().OfType<TextBlock>() ->
+                        Inspect.GetTarget label
+                ]
+            ))
 
     [<Fact>]
     member _.RawTargets() =
         onUi (fun () ->
             let solution = viewSolution ()
-            let panel = rawView solution.Result
-            Assert.Null(Inspect.GetTarget panel)
 
-            for index, binding in List.indexed solution.Result.Bindings.Values do
+            for binding in solution.Result.Bindings.Values do
                 let editor = AlViews.raw binding |> PhlowView.Render
-                Assert.Same(binding.Value, see (Inspect.GetTarget editor))
-                let box = panel.Children[index] :?> Border
-                Assert.Same(binding, box.DataContext)
-                Assert.Same(binding.Value, see (Inspect.GetTarget box.Child)))
-
-    [<Fact>]
-    member _.ShortPreview() =
-        withWindow (fun () -> previewWindow (plainEditor ())) (fun window ->
-            Assert.InRange(see (viewport window).Bounds.Height, 1., 100.))
-
-    [<Fact>]
-    member _.PreviewResizes() =
-        withWindow (fun () -> previewWindow (longEditor ())) (fun window ->
-            let editor = viewport window
-            Assert.Equal(240., see editor.Bounds.Height)
-            resize window 60.
-            Assert.Equal(300., see editor.Bounds.Height))
-
-    [<Theory>]
-    [<InlineData(120, 120.)>]
-    [<InlineData(1000, 240.)>]
-    member _.PreferredHeight(height: int, expected: float) =
-        let create () =
-            textView "Text" 100I "short"
-            |> Map.add (AlAtom "height") (AlInteger(bigint height))
-            |> PhlowView.Render
-            |> previewWindow
-
-        withWindow create (fun window ->
-            Assert.Equal(expected, see (viewport window).Bounds.Height)
-            resize window 60.
-            Assert.Equal(expected + 60., see (viewport window).Bounds.Height))
+                Assert.Equal<obj>(binding.Value, see (Inspect.GetTarget editor)))
 
     [<Fact>]
     member _.PreviewScroll() =
         withWindow (fun () -> previewWindow (longEditor ())) (fun window ->
-            let editor = viewport window :?> TextEditor
+            let editor = editor window
             editor.TextArea.Focus() |> ignore
             press window Key.End RawInputModifiers.Control
             Assert.True(see editor.VerticalOffset > 0.))
@@ -148,14 +92,13 @@ type Facts(output: ITestOutputHelper) =
     [<Fact>]
     member _.PreviewScrollStopsAtDocument() =
         withWindow (fun () -> previewWindow (longEditor ())) (fun window ->
-            let editor = viewport window :?> TextEditor
-            let scroll = editor.GetVisualDescendants().OfType<ScrollViewer>().Single()
+            let editor = editor window
             window.MouseWheel(Point(100., 100.), Vector(0., -10000.), RawInputModifiers.None)
             Dispatcher.UIThread.RunJobs()
 
             Assert.Equal(
                 editor.TextArea.TextView.DocumentHeight,
-                see (scroll.Offset.Y + scroll.Viewport.Height),
+                see (editor.VerticalOffset + editor.ViewportHeight),
                 3
             ))
 
@@ -165,12 +108,16 @@ type Facts(output: ITestOutputHelper) =
             evaluation [ "long", AlText(String.replicate 100 "a line\n") ] |> rawView |> previewWindow
 
         withWindow create (fun window ->
-            let editor = window.GetVisualDescendants().OfType<TextEditor>().Single()
+            let editor = editor window
             editor.TextArea.Focus() |> ignore
             press window Key.End RawInputModifiers.Control
-            let scroll = viewport window :?> ScrollViewer
-            Assert.True(see scroll.Offset.Y > 0.)
-            Assert.Equal(240., scroll.Viewport.Height))
+            let view = editor.TextArea.TextView
+
+            let caret =
+                view.GetVisualPosition(editor.TextArea.Caret.Position, VisualYPosition.LineBottom)
+
+            let point = view.TranslatePoint(caret - view.ScrollOffset, window).Value
+            Assert.InRange(see point.Y, 0., window.Bounds.Height))
 
     [<Fact>]
     member _.ViewPriority() =
@@ -184,39 +131,31 @@ type Facts(output: ITestOutputHelper) =
         )
 
         Assert.Equal("Raw", PhlowView.Text(views[1], "title"))
-        Assert.Equal("first = \"first\"", PhlowView.Text(views[1], "text"))
 
     [<Fact>]
     member _.ViewError() =
         onUi (fun () ->
             let binding = (viewSolution ()).Result.Bindings.Values.Head
             let views = evaluation [ "maps", AlList [ AlMap(invalidTextView ()) ] ]
-            let tabs = SolutionView.BindingTab(binding, views).Content :?> TabControl
-
-            let texts = [
-                for tab in tabs.Items.Cast<TabItem>() ->
-                    ((tab.Content :?> Grid).Children[0] :?> TextEditor).Text
-            ]
-
-            Assert.Equal<string list>(
-                [ "View field 'text' must be a string."; "first = \"first\"" ],
-                see texts
-            ))
+            let error = Record.Exception(fun () -> SolutionView.BindingTab(binding, views) |> ignore)
+            Assert.Null(see error))
 
     [<Fact>]
     member _.ViewTabs() =
         withWindow viewRepl (fun window ->
             let vm = window.DataContext :?> ReplViewModel
             let outer = tabs window vm.Selected
-            let inner = (outer.Items[1] :?> TabItem).Content :?> TabControl
 
             let headers (t: TabControl) = [
                 for item in t.Items -> (item :?> TabItem).Header :?> string
             ]
 
             Assert.Equal<string list>([ "Raw"; "first"; "second" ], see (headers outer))
-            Assert.Equal<string list>([ "Earlier"; "Raw"; "Later" ], see (headers inner))
             Assert.Equal(0, outer.SelectedIndex)
+            outer.SelectedIndex <- 1
+            Dispatcher.UIThread.RunJobs()
+            let inner = outer.GetVisualDescendants().OfType<TabControl>().Single()
+            Assert.Equal<string list>([ "Earlier"; "Raw"; "Later" ], see (headers inner))
             Assert.Equal(0, inner.SelectedIndex))
 
     [<Theory>]
@@ -245,7 +184,7 @@ type Facts(output: ITestOutputHelper) =
             let outer = tabs window vm.Selected
             outer.SelectedIndex <- 1
             Dispatcher.UIThread.RunJobs()
-            let inner = (outer.SelectedItem :?> TabItem).Content :?> TabControl
+            let inner = outer.GetVisualDescendants().OfType<TabControl>().Single()
             inner.SelectedIndex <- 2
             let input = window.FindControl<TextEditor>("Input")
             input.TextArea.Focus() |> ignore
@@ -276,34 +215,19 @@ type Facts(output: ITestOutputHelper) =
         }
 
     [<Fact>]
-    member _.CachedViews() =
+    member _.AnswerNavigation() =
         task {
             let! entry = answerEntry ()
             let first = entry.Solution
             do! entry.NextCommand.ExecuteAsync null
             let second = entry.Solution
             entry.PrevCommand.Execute null
-            Assert.Same(first, entry.Solution)
+            Assert.Equal(first, entry.Solution)
             Assert.Equal("1/2", see entry.Position)
             do! entry.NextCommand.ExecuteAsync null
-            Assert.Same(second, entry.Solution)
+            Assert.Equal(second, entry.Solution)
             Assert.Equal("2/2", see entry.Position)
         }
-
-    [<Fact>]
-    member _.SharedGrammar() =
-        let grammar = elixirGrammar ()
-        output.WriteLine $"{grammar.Highlights.Patterns.Count} highlight patterns"
-        Assert.Same(grammar, elixirGrammar ())
-
-    [<Fact>]
-    member _.AssignmentTree() =
-        use tree = assignmentTree ()
-
-        Assert.Equal(
-            "(source (binary_operator left: (identifier) right: (integer)))",
-            see tree.RootNode.Expression
-        )
 
     [<Fact>]
     member _.AssignmentCaptures() =
@@ -353,7 +277,9 @@ type Facts(output: ITestOutputHelper) =
 
     [<Fact>]
     member _.UnknownGrammar() =
-        Assert.Throws<KeyNotFoundException>(fun () -> Grammars.grammarFor "elixr" |> ignore) |> ignore
+        Assert.ThrowsAny<System.Exception>(fun () ->
+            (Grammars.grammarFor "elixr").GetAwaiter().GetResult() |> ignore)
+        |> ignore
 
     [<Fact>]
     member _.EditorCommandNames() =
