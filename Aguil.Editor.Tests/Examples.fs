@@ -151,14 +151,14 @@ let lineKeys () =
 type CommandLog() =
     member val Runs: string list = [] with get, set
 
-    member private this.Logging name =
-        { new ICommand with
+    member private this.Logging name = {
+        new ICommand with
             member _.CanExecute _ = true
             member _.Execute _ = this.Runs <- this.Runs @ [ name ]
 
             [<CLIEvent>]
             member _.CanExecuteChanged = Event<EventHandler, EventArgs>().Publish
-        }
+    }
 
     member this.PreviousInputCommand = this.Logging "PreviousInput"
     member this.CancelCommand = this.Logging "Cancel"
@@ -230,6 +230,13 @@ let textView title priority text =
         AlAtom "priority", AlInteger priority
         AlAtom "text", AlText text
     ]
+
+/// A text view given an open list instead of a string.
+let invalidTextView () =
+    textView "Invalid" 10I ""
+    |> Map.add
+        (AlAtom "text")
+        (AlImproperList([ AlList [ AlText "one"; AlText "two" ] ], AlVar "tail"))
 
 /// A plain text editor; callers choose how to display it.
 let plainEditor () = PhlowView.Render(textView "Text" 100I "x = 1") :?> TextEditor

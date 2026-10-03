@@ -27,7 +27,7 @@ public static class ResultView
 
         void Box(object value, string text, object? target = null)
         {
-            var editor = new TextEditor { Text = text, IsReadOnly = true };
+            var editor = PhlowView.RenderText(text, "elixir");
             editor.TextArea.Caret.PositionChanged += (_, _) =>
             {
                 var view = editor.TextArea.TextView;

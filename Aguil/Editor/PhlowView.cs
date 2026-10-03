@@ -12,7 +12,9 @@ public static class PhlowView
     {
         Control control = Text(fields, "view") switch
         {
-            "text" => RenderText(fields),
+            "text" => RenderText(Text(fields, "text"),
+                fields.TryGetValue(Value.NewAlAtom("grammar"), out var grammar) && grammar is Value.AlText text
+                    ? text.Item : null),
             var kind => throw new NotSupportedException($"Unknown view: {kind}")
         };
         if (fields.TryGetValue(Value.NewAlAtom("target"), out var target))
@@ -27,16 +29,17 @@ public static class PhlowView
         return control;
     }
 
-    public static TextEditor RenderText(FSharpMap<Value, Value> fields)
+    public static TextEditor RenderText(string text, string? grammar = null)
     {
-        var editor = new TextEditor { Text = Text(fields, "text"), IsReadOnly = true };
+        var editor = new TextEditor { Text = text, IsReadOnly = true };
+        editor.Options.AllowScrollBelowDocument = false;
         Code.SetKeymap(editor, Keymaps.defaults);
-        Code.SetGrammar(editor,
-            fields.TryGetValue(Value.NewAlAtom("grammar"), out var grammar) && grammar is Value.AlText text
-                ? text.Item : null);
+        Code.SetGrammar(editor, grammar);
         return editor;
     }
 
     public static string Text(FSharpMap<Value, Value> fields, string key) =>
-        ((Value.AlText)fields[Value.NewAlAtom(key)]).Item;
+        fields.TryGetValue(Value.NewAlAtom(key), out var value) && value is Value.AlText text
+            ? text.Item
+            : throw new ArgumentException($"View field '{key}' must be a string.");
 }

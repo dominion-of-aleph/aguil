@@ -6,6 +6,8 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using AvaloniaEdit;
+using Microsoft.FSharp.Collections;
+using Value = Aguil.Core.AlValues.AlValue;
 
 namespace Aguil.Editor;
 
@@ -47,14 +49,26 @@ public static class SolutionView
             {
                 Classes = { "view-tabs" },
                 Padding = new Thickness(0),
-                ItemsSource = AlViews.forBinding(binding, result).Select(description => new TabItem
-                {
-                    Header = PhlowView.Text(description, "title"),
-                    Content = Preview(PhlowView.Render(description))
-                }).ToArray(),
+                ItemsSource = AlViews.forBinding(binding, result).Select(ViewTab).ToArray(),
                 SelectedIndex = 0
             }
         };
+
+    public static TabItem ViewTab(FSharpMap<Value, Value> description)
+    {
+        var title = "View error";
+        Control content;
+        try
+        {
+            title = PhlowView.Text(description, "title");
+            content = PhlowView.Render(description);
+        }
+        catch (Exception error)
+        {
+            content = PhlowView.RenderText(error.Message);
+        }
+        return new TabItem { Header = title, Content = Preview(content) };
+    }
 
     public static Control Preview(Control content)
     {

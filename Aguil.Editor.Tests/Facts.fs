@@ -146,6 +146,20 @@ type Facts(output: ITestOutputHelper) =
             Assert.True(see editor.VerticalOffset > 0.))
 
     [<Fact>]
+    member _.PreviewScrollStopsAtDocument() =
+        withWindow (fun () -> previewWindow (longEditor ())) (fun window ->
+            let editor = viewport window :?> TextEditor
+            let scroll = editor.GetVisualDescendants().OfType<ScrollViewer>().Single()
+            window.MouseWheel(Point(100., 100.), Vector(0., -10000.), RawInputModifiers.None)
+            Dispatcher.UIThread.RunJobs()
+
+            Assert.Equal(
+                editor.TextArea.TextView.DocumentHeight,
+                see (scroll.Offset.Y + scroll.Viewport.Height),
+                3
+            ))
+
+    [<Fact>]
     member _.RawScroll() =
         let create () =
             evaluation [ "long", AlText(String.replicate 100 "a line\n") ] |> rawView |> previewWindow
@@ -171,6 +185,23 @@ type Facts(output: ITestOutputHelper) =
 
         Assert.Equal("Raw", PhlowView.Text(views[1], "title"))
         Assert.Equal("first = \"first\"", PhlowView.Text(views[1], "text"))
+
+    [<Fact>]
+    member _.ViewError() =
+        onUi (fun () ->
+            let binding = (viewSolution ()).Result.Bindings.Values.Head
+            let views = evaluation [ "maps", AlList [ AlMap(invalidTextView ()) ] ]
+            let tabs = SolutionView.BindingTab(binding, views).Content :?> TabControl
+
+            let texts = [
+                for tab in tabs.Items.Cast<TabItem>() ->
+                    ((tab.Content :?> Grid).Children[0] :?> TextEditor).Text
+            ]
+
+            Assert.Equal<string list>(
+                [ "View field 'text' must be a string."; "first = \"first\"" ],
+                see texts
+            ))
 
     [<Fact>]
     member _.ViewTabs() =
