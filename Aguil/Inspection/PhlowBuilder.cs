@@ -1,12 +1,13 @@
 using System;
+using Aguil.Editor;
 using Avalonia.Controls;
 using AvaloniaEdit;
 using Microsoft.FSharp.Collections;
 using Value = Aguil.Core.AlValues.AlValue;
 
-namespace Aguil.Editor;
+namespace Aguil.Inspection;
 
-public static class PhlowView
+public static class PhlowBuilder
 {
     public static Control Render(FSharpMap<Value, Value> fields)
     {
@@ -18,7 +19,7 @@ public static class PhlowView
             var kind => throw new NotSupportedException($"Unknown view: {kind}")
         };
         if (fields.TryGetValue(Value.NewAlAtom("target"), out var target))
-            Inspect.SetTarget(control, target);
+            InspectionTarget.SetTarget(control, target);
         if (fields.TryGetValue(Value.NewAlAtom("height"), out var height))
             control.Height = height switch
             {

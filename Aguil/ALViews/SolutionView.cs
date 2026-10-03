@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Aguil.Core;
+using Aguil.Inspection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -9,7 +10,7 @@ using AvaloniaEdit;
 using Microsoft.FSharp.Collections;
 using Value = Aguil.Core.AlValues.AlValue;
 
-namespace Aguil.Editor;
+namespace Aguil.ALViews;
 
 public static class SolutionView
 {
@@ -52,11 +53,11 @@ public static class SolutionView
 
     public static TabItem BindingTab(AlEvaluation.Binding<AlValues.AlValue> binding,
         AlEvaluation.EvaluationContext result) => new()
-    {
-        Header = binding.Symbol,
-        DataContext = binding,
-        Content = Inspector(binding, result)
-    };
+        {
+            Header = binding.Symbol,
+            DataContext = binding,
+            Content = Inspector(binding, result)
+        };
 
     public static TabItem ViewTab(FSharpMap<Value, Value> description)
     {
@@ -64,12 +65,12 @@ public static class SolutionView
         Control content;
         try
         {
-            title = PhlowView.Text(description, "title");
-            content = PhlowView.Render(description);
+            title = PhlowBuilder.Text(description, "title");
+            content = PhlowBuilder.Render(description);
         }
         catch (Exception error)
         {
-            content = PhlowView.RenderText(error.Message);
+            content = PhlowBuilder.RenderText(error.Message);
         }
 
         return new TabItem { Header = title, Content = Preview(content) };

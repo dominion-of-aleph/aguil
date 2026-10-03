@@ -1,8 +1,10 @@
 namespace Aguil.Editor
 
 open System.Linq
+open Aguil.ALViews
 open Aguil.Core
 open Aguil.Core.AlValues
+open Aguil.Inspection
 open Aguil.ViewModels
 open Avalonia
 open Avalonia.Controls
@@ -56,19 +58,19 @@ type Facts(output: ITestOutputHelper) =
             for editor, grammar in [ plainEditor (), null; sourceEditor (), "elixir" ] do
                 Assert.Equal("x = 1", see editor.Text)
                 Assert.Equal(grammar, see (Code.GetGrammar editor))
-                Assert.Null(Inspect.GetTarget editor))
+                Assert.Null(InspectionTarget.GetTarget editor))
 
     [<Fact>]
     member _.ItemTargets() =
         withWindow (fun () -> Window(Content = targetList ())) (fun window ->
             let list = window.Content :?> ListBox
-            Assert.Null(Inspect.GetTarget list)
+            Assert.Null(InspectionTarget.GetTarget list)
 
             Assert.Equal<obj list>(
                 [ box "one"; box "two" ],
                 see [
                     for label in list.GetVisualDescendants().OfType<TextBlock>() ->
-                        Inspect.GetTarget label
+                        InspectionTarget.GetTarget label
                 ]
             ))
 
@@ -78,8 +80,8 @@ type Facts(output: ITestOutputHelper) =
             let solution = viewSolution ()
 
             for binding in solution.Result.Bindings.Values do
-                let editor = AlViews.raw binding |> PhlowView.Render
-                Assert.Equal<obj>(binding.Value, see (Inspect.GetTarget editor)))
+                let editor = AlViews.raw binding |> PhlowBuilder.Render
+                Assert.Equal<obj>(binding.Value, see (InspectionTarget.GetTarget editor)))
 
     [<Fact>]
     member _.PreviewScroll() =
@@ -130,7 +132,7 @@ type Facts(output: ITestOutputHelper) =
             see (views |> List.map (Map.find (AlAtom "priority")))
         )
 
-        Assert.Equal("Raw", PhlowView.Text(views[1], "title"))
+        Assert.Equal("Raw", PhlowBuilder.Text(views[1], "title"))
 
     [<Fact>]
     member _.ViewError() =
@@ -207,7 +209,7 @@ type Facts(output: ITestOutputHelper) =
                 let answer = entry.Result.Bindings.Values |> List.find (fun b -> b.Symbol = "answer")
                 let description = (AlViews.descriptions entry.Solution.Views["output"])[0]
                 Assert.Equal(AlText expected, see answer.Value)
-                Assert.Equal(expected, PhlowView.Text(description, "text"))
+                Assert.Equal(expected, PhlowBuilder.Text(description, "text"))
 
             check "one"
             do! entry.NextCommand.ExecuteAsync null

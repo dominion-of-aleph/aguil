@@ -1,10 +1,11 @@
 using Aguil.Core;
+using Aguil.Inspection;
 using Avalonia;
 using Avalonia.Controls;
 using AvaloniaEdit;
 using AvaloniaEdit.Rendering;
 
-namespace Aguil.Editor;
+namespace Aguil.ALViews;
 
 public static class ResultView
 {
@@ -27,7 +28,7 @@ public static class ResultView
 
         void Box(object value, string text, object? target = null)
         {
-            var editor = PhlowView.RenderText(text, "elixir");
+            var editor = PhlowBuilder.RenderText(text, "elixir");
             editor.TextArea.Caret.PositionChanged += (_, _) =>
             {
                 var view = editor.TextArea.TextView;
@@ -39,7 +40,7 @@ public static class ResultView
             {
                 Classes = { "binding" },
                 DataContext = value,
-                [Inspect.TargetProperty] = target,
+                [InspectionTarget.TargetProperty] = target,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(2),
                 Child = editor

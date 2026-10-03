@@ -1,12 +1,12 @@
 using Avalonia;
 using Avalonia.Controls;
 
-namespace Aguil.Editor;
+namespace Aguil.Inspection;
 
-public static class Inspect
+public static class InspectionTarget
 {
     public static readonly AttachedProperty<object?> TargetProperty =
-        AvaloniaProperty.RegisterAttached<Control, object?>("Target", typeof(Inspect), inherits: true);
+        AvaloniaProperty.RegisterAttached<Control, object?>("Target", typeof(InspectionTarget), inherits: true);
 
     public static object? GetTarget(Control control) => control.GetValue(TargetProperty);
 

@@ -4,9 +4,11 @@ module Aguil.Editor.Examples
 open System
 open System.Threading
 open System.Windows.Input
+open Aguil.ALViews
 open Aguil.Core
 open Aguil.Core.AlEvaluation
 open Aguil.Core.AlValues
+open Aguil.Inspection
 open Aguil.ViewModels
 open Avalonia
 open Avalonia.Controls
@@ -239,11 +241,13 @@ let invalidTextView () =
         (AlImproperList([ AlList [ AlText "one"; AlText "two" ] ], AlVar "tail"))
 
 /// A plain text editor; callers choose how to display it.
-let plainEditor () = PhlowView.Render(textView "Text" 100I "x = 1") :?> TextEditor
+let plainEditor () = PhlowBuilder.Render(textView "Text" 100I "x = 1") :?> TextEditor
 
 /// The text description requests source highlighting.
 let sourceEditor () =
-    textView "Source" 100I "x = 1" |> Map.add (AlAtom "grammar") (AlText "elixir") |> PhlowView.Render
+    textView "Source" 100I "x = 1"
+    |> Map.add (AlAtom "grammar") (AlText "elixir")
+    |> PhlowBuilder.Render
     :?> TextEditor
 
 /// Enough lines to explore scrolling and resizing.
@@ -255,7 +259,7 @@ let longEditor () =
 /// A target belongs to the item; its label inherits it.
 let targetItem target =
     let item = Border(Child = TextBlock(Text = string target))
-    Inspect.SetTarget(item, target)
+    InspectionTarget.SetTarget(item, target)
     item
 
 /// Independent item targets in an ordinary list.

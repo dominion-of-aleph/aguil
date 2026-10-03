@@ -1,7 +1,8 @@
 using System;
 using System.Linq;
+using Aguil.ALViews;
 using Aguil.Core;
-using Aguil.Editor;
+using Aguil.Inspection;
 using Value = Aguil.Core.AlValues.AlValue;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -70,7 +71,7 @@ public partial class Repl : Window
             if (e.Source is Control source &&
                 e.GetCurrentPoint(source).Properties.PointerUpdateKind
                 == PointerUpdateKind.MiddleButtonPressed &&
-                Inspect.GetTarget(source) is Value target)
+                InspectionTarget.GetTarget(source) is Value target)
             {
                 e.Handled = true;
 
@@ -84,7 +85,7 @@ public partial class Repl : Window
                 }
                 catch (Exception error)
                 {
-                    Flow.Children.Add(PhlowView.RenderText(error.Message));
+                    Flow.Children.Add(PhlowBuilder.RenderText(error.Message));
                 }
             }
         }, RoutingStrategies.Tunnel);
