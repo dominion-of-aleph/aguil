@@ -4,6 +4,7 @@ open System
 open System.Net.Http
 open System.Net.Http.Json
 open System.Text.Json
+open System.Threading.Tasks
 open Aguil.Core.AlEvaluation
 open Aguil.Core.AlValues
 
@@ -140,6 +141,27 @@ type AlMcpClient(url: string) =
                 callTool "queryAL" (box {| source = source; branch = Option.ofObj branch |})
 
             return grab_context content
+        }
+
+    member self.QueryAlViews(source: string, branch: string) =
+        task {
+            let! results = self.QueryAl(source, branch)
+            let! views = self.AlViewsFromQuery(results, branch)
+            return results, views
+        }
+
+    member self.AlViewsFromQuery(results: EvaluationContext, branch: string) =
+        task {
+            let! views =
+                results.Bindings.Values
+                |> Seq.map (fun b ->
+                    task {
+                        let! view = self.QueryAl(AlEvaluation.binding_to_query b, branch)
+                        return b.Symbol, view
+                    })
+                |> Task.WhenAll
+
+            return Map.ofArray views
         }
 
     member _.NextSolution(context: string) =

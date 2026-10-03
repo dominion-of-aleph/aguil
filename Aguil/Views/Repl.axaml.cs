@@ -43,6 +43,21 @@ public partial class Repl : Window
             }
         }, RoutingStrategies.Tunnel);
 
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.KeyModifiers != KeyModifiers.Alt && e.KeyModifiers != (KeyModifiers.Control | KeyModifiers.Alt))
+                return;
+            var index = (int)e.Key - (int)Key.D1;
+            if (index is < 0 or > 8 || vm.Target is not { } target) return;
+            var level = e.KeyModifiers.HasFlag(KeyModifiers.Control) ? "view-tabs" : "result-tabs";
+            var tabs = Entries.GetVisualDescendants().OfType<TabControl>().FirstOrDefault(t =>
+                t.IsEffectivelyVisible && t.Classes.Contains(level) &&
+                t.GetVisualAncestors().Prepend(t).OfType<Control>().Any(c => c.DataContext == target));
+            if (tabs is null || index >= tabs.Items.Count) return;
+            tabs.SelectedIndex = index;
+            e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+
         vm.History.CollectionChanged += (_, _) => ScrollToEnd();
 
         // the editors handle the press (to place the caret), so ListBox never selects

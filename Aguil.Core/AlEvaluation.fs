@@ -11,6 +11,11 @@ type Binding<'a> = { Symbol: string; Value: 'a }
 /// Evaluated Terms, preserving failures
 type Decoded = { Values: Binding<AlValue> list; Failures: Binding<DecodeError> list }
 
+let binding_to_query ({ Symbol = name; Value = v }: Binding<AlValue>) =
+    "new(:view_builder, %{}, builder); "
+    + $"{name} = {v}; findall(map, maps) do; view({name}, builder, phlow); to_map(phlow, map); end"
+
+
 [<RequireQualifiedAccess>]
 module Binding =
     let partition (xs: (string * Result<AlValue, DecodeError>) list) =
@@ -53,3 +58,5 @@ type EvaluationContext = {
         |> fun body -> body + "\n" + c.Context
 
     override c.ToString() = c.Pretty 80
+
+type Solution = { Result: EvaluationContext; Views: Map<string, EvaluationContext> }

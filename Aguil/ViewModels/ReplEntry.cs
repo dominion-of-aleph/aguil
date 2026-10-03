@@ -21,16 +21,17 @@ public sealed partial class ReplSuccess : ReplEntry
 {
     private readonly AlMcpClient _al;
 
-    public ReplSuccess(string source, AlEvaluation.EvaluationContext first, AlMcpClient al)
+    public ReplSuccess(string source, AlEvaluation.Solution first, AlMcpClient al)
         : base(source)
     {
         _al = al;
         Solutions.Add(first);
     }
 
-    public ObservableCollection<AlEvaluation.EvaluationContext> Solutions { get; } = [];
+    public ObservableCollection<AlEvaluation.Solution> Solutions { get; } = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Solution))]
     [NotifyPropertyChangedFor(nameof(Result))]
     [NotifyPropertyChangedFor(nameof(Position))]
     [NotifyCanExecuteChangedFor(nameof(PrevCommand))]
@@ -41,9 +42,11 @@ public sealed partial class ReplSuccess : ReplEntry
     [NotifyCanExecuteChangedFor(nameof(NextCommand))]
     public partial bool Exhausted { get; set; }
 
-    public AlEvaluation.EvaluationContext Result => Solutions[Index];
+    public AlEvaluation.Solution Solution => Solutions[Index];
 
-    public AlEvaluation.EvaluationContext Frontier => Solutions[^1];
+    public AlEvaluation.EvaluationContext Result => Solution.Result;
+
+    public AlEvaluation.EvaluationContext Frontier => Solutions[^1].Result;
 
     public string Position => $"{Index + 1}/{Solutions.Count}";
 
@@ -65,15 +68,20 @@ public sealed partial class ReplSuccess : ReplEntry
         }
 
         // hasPotentialSolution does not promise an answer, exhaustion comes back as a failure
+        AlEvaluation.EvaluationContext result;
         try
         {
-            Solutions.Add(await _al.NextSolution(Frontier.Context));
-            Index = Solutions.Count - 1;
+            result = await _al.NextSolution(Frontier.Context);
         }
         catch (AlException)
         {
             Exhausted = true;
+            return;
         }
+
+        var views = await _al.AlViewsFromQuery(result, null);
+        Solutions.Add(new AlEvaluation.Solution(result, views));
+        Index = Solutions.Count - 1;
     }
 
     // the search can be unbounded, so stop and leave Next enabled rather than being Hina

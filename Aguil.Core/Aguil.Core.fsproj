@@ -8,6 +8,7 @@
     <ItemGroup>
         <Compile Include="AlValues.fs"/>
         <Compile Include="AlEvaluation.fs"/>
+        <Compile Include="AlViews.fs"/>
         <Compile Include="AlMcpClient.fs"/>
     </ItemGroup>
 

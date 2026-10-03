@@ -65,8 +65,8 @@ public partial class ReplViewModel : ViewModelBase
         // Replace with a real sum type logic
         try
         {
-            var res = await _al.QueryAl(source, null);
-            entry = new ReplSuccess(source, res, _al);
+            var (result, views) = await _al.QueryAlViews(source, null);
+            entry = new ReplSuccess(source, new AlEvaluation.Solution(result, views), _al);
         }
         catch (AlException e)
         {
@@ -79,7 +79,7 @@ public partial class ReplViewModel : ViewModelBase
 
     [ObservableProperty] public partial ReplEntry? Selected { get; set; }
 
-    private ReplSuccess? Target =>
+    public ReplSuccess? Target =>
         Selected switch
         {
             ReplSuccess s => s,
