@@ -1,5 +1,8 @@
+using System;
 using System.Linq;
-using Avalonia;
+using Aguil.Core;
+using Aguil.Editor;
+using Value = Aguil.Core.AlValues.AlValue;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
@@ -60,6 +63,32 @@ public partial class Repl : Window
 
         vm.History.CollectionChanged += (_, _) => ScrollToEnd();
 
+        var al = new AlMcpClient();
+
+        Flow.AddHandler(PointerPressedEvent, async (_, e) =>
+        {
+            if (e.Source is Control source &&
+                e.GetCurrentPoint(source).Properties.PointerUpdateKind
+                == PointerUpdateKind.MiddleButtonPressed &&
+                Inspect.GetTarget(source) is Value target)
+            {
+                e.Handled = true;
+
+                try
+                {
+                    var binding = new AlEvaluation.Binding<Value>("value", target);
+                    var result = await al.QueryAl(AlEvaluation.binding_to_query(binding), null);
+                    var child = SolutionView.Inspector(binding, result);
+                    Flow.Children.Add(child);
+                    Dispatcher.UIThread.Post(child.BringIntoView, DispatcherPriority.Loaded);
+                }
+                catch (Exception error)
+                {
+                    Flow.Children.Add(PhlowView.RenderText(error.Message));
+                }
+            }
+        }, RoutingStrategies.Tunnel);
+
         // the editors handle the press (to place the caret), so ListBox never selects
         Entries.AddHandler(PointerPressedEvent, (_, e) =>
         {
@@ -69,6 +98,7 @@ public partial class Repl : Window
                 vm.Selected = entry;
         }, handledEventsToo: true);
     }
+
 
     private async void CopyResult(object? sender, RoutedEventArgs e)
     {

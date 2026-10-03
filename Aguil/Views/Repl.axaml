@@ -47,97 +47,108 @@
             </Setter>
         </Style>
     </Window.Styles>
+
     <Window.KeyBindings>
         <KeyBinding Gesture="Alt+OemSemicolon" Command="{Binding NextSolutionCommand}" />
         <KeyBinding Gesture="Alt+OemPeriod" Command="{Binding AllSolutionsCommand}" />
     </Window.KeyBindings>
-    <!-- Change AL-USER to include the branch -->
-    <ScrollViewer Name="Scroll">
-        <StackPanel>
-            <ListBox Name="Entries" ItemsSource="{Binding History}" SelectedItem="{Binding Selected}"
-                     Background="Transparent" BorderThickness="0"
-                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
-                <ListBox.Styles>
-                    <Style Selector="ListBoxItem">
-                        <Setter Property="Padding" Value="0" />
-                    </Style>
-                    <Style Selector="ListBoxItem /template/ ContentPresenter">
-                        <Setter Property="Background" Value="Transparent" />
-                    </Style>
-                    <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
-                        <Setter Property="Background" Value="Transparent" />
-                    </Style>
-                    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-                        <Setter Property="Background" Value="Transparent" />
-                    </Style>
-                    <Style Selector="ListBoxItem:selected Border.entry">
-                        <Setter Property="BorderBrush"
-                                Value="{DynamicResource SystemControlForegroundAccentBrush}" />
-                    </Style>
-                </ListBox.Styles>
-                <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel />
-                    </ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
-                <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ReplEntry">
-                        <Border Classes="entry"
-                                BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
-                                BorderThickness="1" CornerRadius="4"
-                                Padding="8" Margin="0,0,0,6" Background="Transparent">
-                            <StackPanel>
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Left" Text="AL-USER> " Foreground="DarkSlateBlue" />
-                                    <ae:TextEditor IsReadOnly="True" editor:Code.Text="{Binding Source}" />
-                                </DockPanel>
 
-                                <ContentControl Content="{Binding}">
-                                    <!-- Include this in a tab view, failures of the protocol should be an object -->
-                                    <ContentControl.DataTemplates>
-                                        <!-- Change to a tab view -->
-                                        <DataTemplate x:DataType="vm:ReplSuccess">
-                                            <StackPanel>
-                                                <TabControl Classes="result-tabs" Padding="0"
-                                                            editor:SolutionView.Solution="{Binding Solution}" />
-                                                <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
-                                                    <Button Command="{Binding PrevCommand}"
-                                                            ToolTip.Tip="Previous solution">
-                                                        <PathIcon Width="10" Height="10"
-                                                                  Data="M 10,0 L 10,12 L 1,6 Z" />
-                                                    </Button>
-                                                    <Button Command="{Binding NextCommand}"
-                                                            ToolTip.Tip="Next solution">
-                                                        <PathIcon Width="10" Height="10"
-                                                                  Data="M 2,0 L 2,12 L 11,6 Z" />
-                                                    </Button>
-                                                    <TextBlock Text="{Binding Position}" VerticalAlignment="Center"
-                                                               Foreground="DimGray" />
-                                                    <Button Content="Copy all" Click="CopyResult" Focusable="False"
-                                                            Padding="8,2" VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </DataTemplate>
+    <ScrollViewer HorizontalScrollBarVisibility="Hidden">
+        <StackPanel Orientation="Horizontal" Name="Flow">
+            <!-- Change AL-USER to include the branch -->
+            <ScrollViewer Name="Scroll">
+                <StackPanel>
+                    <ListBox Name="Entries" ItemsSource="{Binding History}" SelectedItem="{Binding Selected}"
+                             Background="Transparent" BorderThickness="0"
+                             ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                        <ListBox.Styles>
+                            <Style Selector="ListBoxItem">
+                                <Setter Property="Padding" Value="0" />
+                            </Style>
+                            <Style Selector="ListBoxItem /template/ ContentPresenter">
+                                <Setter Property="Background" Value="Transparent" />
+                            </Style>
+                            <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                                <Setter Property="Background" Value="Transparent" />
+                            </Style>
+                            <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                                <Setter Property="Background" Value="Transparent" />
+                            </Style>
+                            <Style Selector="ListBoxItem:selected Border.entry">
+                                <Setter Property="BorderBrush"
+                                        Value="{DynamicResource SystemControlForegroundAccentBrush}" />
+                            </Style>
+                        </ListBox.Styles>
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ReplEntry">
+                                <Border Classes="entry"
+                                        BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}"
+                                        BorderThickness="1" CornerRadius="4"
+                                        Padding="8" Margin="0,0,0,6" Background="Transparent">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Left" Text="AL-USER> "
+                                                       Foreground="DarkSlateBlue" />
+                                            <ae:TextEditor IsReadOnly="True" editor:Code.Text="{Binding Source}" />
+                                        </DockPanel>
 
-                                        <DataTemplate x:DataType="vm:ReplFailure">
-                                            <StackPanel>
-                                                <Border Classes="bar" Background="IndianRed" />
-                                                <ae:TextEditor IsReadOnly="True" editor:Code.Text="{Binding Error}"
-                                                               editor:Code.Grammar="{x:Null}" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ContentControl.DataTemplates>
-                                </ContentControl>
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                                        <ContentControl Content="{Binding}">
+                                            <!-- Include this in a tab view, failures of the protocol should be an object -->
+                                            <ContentControl.DataTemplates>
+                                                <!-- Change to a tab view -->
+                                                <DataTemplate x:DataType="vm:ReplSuccess">
+                                                    <StackPanel>
+                                                        <TabControl Classes="result-tabs" Padding="0"
+                                                                    editor:SolutionView.Solution="{Binding Solution}" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="4"
+                                                                    Margin="0,4,0,0">
+                                                            <Button Command="{Binding PrevCommand}"
+                                                                    ToolTip.Tip="Previous solution">
+                                                                <PathIcon Width="10" Height="10"
+                                                                          Data="M 10,0 L 10,12 L 1,6 Z" />
+                                                            </Button>
+                                                            <Button Command="{Binding NextCommand}"
+                                                                    ToolTip.Tip="Next solution">
+                                                                <PathIcon Width="10" Height="10"
+                                                                          Data="M 2,0 L 2,12 L 11,6 Z" />
+                                                            </Button>
+                                                            <TextBlock Text="{Binding Position}"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="DimGray" />
+                                                            <Button Content="Copy all" Click="CopyResult"
+                                                                    Focusable="False"
+                                                                    Padding="8,2" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </DataTemplate>
 
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Left" Text="AL-USER> " Foreground="DarkSlateBlue" />
-                <ae:TextEditor Name="Input" />
-            </DockPanel>
+                                                <DataTemplate x:DataType="vm:ReplFailure">
+                                                    <StackPanel>
+                                                        <Border Classes="bar" Background="IndianRed" />
+                                                        <ae:TextEditor IsReadOnly="True"
+                                                                       editor:Code.Text="{Binding Error}"
+                                                                       editor:Code.Grammar="{x:Null}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ContentControl.DataTemplates>
+                                        </ContentControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Left" Text="AL-USER> " Foreground="DarkSlateBlue" />
+                        <ae:TextEditor Name="Input" />
+                    </DockPanel>
+                </StackPanel>
+            </ScrollViewer>
         </StackPanel>
     </ScrollViewer>
 </Window>

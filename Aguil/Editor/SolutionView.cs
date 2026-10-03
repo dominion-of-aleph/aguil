@@ -40,19 +40,23 @@ public static class SolutionView
         .. solution.Result.Bindings.Values.Select(binding => BindingTab(binding, solution.Views[binding.Symbol]))
     ];
 
+    public static TabControl Inspector(AlEvaluation.Binding<AlValues.AlValue> binding,
+        AlEvaluation.EvaluationContext result) =>
+        new()
+        {
+            Classes = { "view-tabs" },
+            Padding = new Thickness(0),
+            ItemsSource = AlViews.forBinding(binding, result).Select(ViewTab).ToArray(),
+            SelectedIndex = 0
+        };
+
     public static TabItem BindingTab(AlEvaluation.Binding<AlValues.AlValue> binding,
         AlEvaluation.EvaluationContext result) => new()
-        {
-            Header = binding.Symbol,
-            DataContext = binding,
-            Content = new TabControl
-            {
-                Classes = { "view-tabs" },
-                Padding = new Thickness(0),
-                ItemsSource = AlViews.forBinding(binding, result).Select(ViewTab).ToArray(),
-                SelectedIndex = 0
-            }
-        };
+    {
+        Header = binding.Symbol,
+        DataContext = binding,
+        Content = Inspector(binding, result)
+    };
 
     public static TabItem ViewTab(FSharpMap<Value, Value> description)
     {
@@ -67,6 +71,7 @@ public static class SolutionView
         {
             content = PhlowView.RenderText(error.Message);
         }
+
         return new TabItem { Header = title, Content = Preview(content) };
     }
 
@@ -79,12 +84,14 @@ public static class SolutionView
             editor.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
             viewport = editor;
         }
-        else viewport = new ScrollViewer
-        {
-            Content = content,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
-        };
+        else
+            viewport = new ScrollViewer
+            {
+                Content = content,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+            };
+
         viewport.MaxHeight = 240;
         var grip = new Thumb
         {
