@@ -10,7 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Aguil.ViewModels;
 
-public partial class ReplViewModel : ViewModelBase
+public partial class ReplViewModel : ObservableObject
 {
     private readonly AlMcpClient _al = new();
 
