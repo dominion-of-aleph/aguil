@@ -20,7 +20,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Aguil.Editor\Aguil.Editor.fsproj"/>
-        <ProjectReference Include="..\Aguil\Aguil.csproj"/>
+        <ProjectReference Include="..\Aguil.Core\Aguil.Core.fsproj"/>
     </ItemGroup>
 
 </Project>

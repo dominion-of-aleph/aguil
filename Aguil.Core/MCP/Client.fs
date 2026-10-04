@@ -1,21 +1,17 @@
-namespace Aguil.Core
+namespace Aguil.Core.MCP
 
 open System
 open System.Net.Http
 open System.Net.Http.Json
 open System.Text.Json
 open System.Threading.Tasks
-open Aguil.Core.AlEvaluation
+open Aguil.Core.MCP.Evaluation
 open Aguil.Core.AlValues
 
 type AlException(message: string) =
     inherit Exception(message)
 
 type AlMcpClient(url: string) =
-    // AL keeps every source it evaluated, with where it came from
-    static let previousInputsQuery =
-        "findall([tx, text, origin], inputs) do\n  vm_transaction_source(tx, text, origin)\nend"
-
     let http = new HttpClient()
     let mutable currentId = 0
 
@@ -150,14 +146,21 @@ type AlMcpClient(url: string) =
             return results, views
         }
 
+    member self.Inspect(value: AlValue, branch: string) =
+        task {
+            let binding = { Symbol = "value"; Value = value }
+            let! result = self.QueryAl(binding_to_query binding, branch)
+            return Views.fromQuery result
+        }
+
     member self.AlViewsFromQuery(results: EvaluationContext, branch: string) =
         task {
             let! views =
                 results.Bindings.Values
                 |> Seq.map (fun b ->
                     task {
-                        let! view = self.QueryAl(AlEvaluation.binding_to_query b, branch)
-                        return b.Symbol, view
+                        let! view = self.QueryAl(binding_to_query b, branch)
+                        return b.Symbol, Views.fromQuery view
                     })
                 |> Task.WhenAll
 
@@ -173,21 +176,8 @@ type AlMcpClient(url: string) =
     /// Every input evaluated before, oldest first: AL's own runs and this query are left out.
     member this.PreviousInputs() =
         task {
-            let! result = this.QueryAl(previousInputsQuery, null)
-
-            let input row =
-                match row with
-                | AlList [ _; AlText text; AlMap origin ] when
-                    origin.TryFind(AlAtom "kind") = Some(AlAtom "eval_source")
-                    && text <> previousInputsQuery
-                    ->
-                    Some text
-                | _ -> None
-
-            return
-                match result.Bindings.Values |> List.tryFind (fun b -> b.Symbol = "inputs") with
-                | Some { Value = AlList rows } -> List.choose input rows
-                | _ -> []
+            let! result = this.QueryAl(History.query, null)
+            return History.fromQuery result
         }
 
     member _.DebugGrab(source: string, branch: string) =

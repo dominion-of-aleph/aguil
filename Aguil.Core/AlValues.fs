@@ -78,3 +78,17 @@ type AlValue =
     static member Pretty(width: int, v: AlValue) = AlValue.Pretty(width, 0, 0, v)
 
     override v.ToString() = AlValue.Pretty(80, v)
+
+let maps value =
+    match value with
+    | AlList items ->
+        items
+        |> List.map (function
+            | AlMap fields -> fields
+            | _ -> invalidOp "Expected a map")
+    | _ -> invalidOp "Expected a list of maps"
+
+let text key fields =
+    match Map.tryFind (AlAtom key) fields with
+    | Some(AlText value) -> value
+    | _ -> invalidArg key $"Field '{key}' must be a string."

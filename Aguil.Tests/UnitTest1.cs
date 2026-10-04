@@ -1,4 +1,4 @@
-﻿using Aguil.Core;
+﻿using Aguil.Core.MCP;
 using Xunit.Abstractions;
 
 namespace Aguil.Tests;

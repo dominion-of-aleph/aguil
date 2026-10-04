@@ -7,9 +7,10 @@
 
     <ItemGroup>
         <Compile Include="AlValues.fs"/>
-        <Compile Include="AlEvaluation.fs"/>
-        <Compile Include="AlViews.fs"/>
-        <Compile Include="AlMcpClient.fs"/>
+        <Compile Include="MCP/Evaluation.fs"/>
+        <Compile Include="MCP/History.fs"/>
+        <Compile Include="MCP/Views.fs"/>
+        <Compile Include="MCP/Client.fs"/>
     </ItemGroup>
 
 </Project>

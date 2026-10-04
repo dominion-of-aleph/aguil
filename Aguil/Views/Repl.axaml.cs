@@ -1,8 +1,8 @@
 using System;
 using System.Linq;
-using Aguil.ALViews;
-using Aguil.Core;
-using Aguil.Inspection;
+using Aguil.Core.MCP;
+using Aguil.Editor;
+using Aguil.Phlow;
 using Value = Aguil.Core.AlValues.AlValue;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -53,10 +53,11 @@ public partial class Repl : Window
                 return;
             var index = (int)e.Key - (int)Key.D1;
             if (index is < 0 or > 8 || vm.Target is not { } target) return;
-            var level = e.KeyModifiers.HasFlag(KeyModifiers.Control) ? "view-tabs" : "result-tabs";
-            var tabs = Entries.GetVisualDescendants().OfType<TabControl>().FirstOrDefault(t =>
-                t.IsEffectivelyVisible && t.Classes.Contains(level) &&
-                t.GetVisualAncestors().Prepend(t).OfType<Control>().Any(c => c.DataContext == target));
+            var level = e.KeyModifiers.HasFlag(KeyModifiers.Control) ? 1 : 0;
+            var tabs = Entries.GetVisualDescendants().OfType<Inspector>().Where(t =>
+                    t.IsEffectivelyVisible &&
+                    t.GetVisualAncestors().Prepend(t).OfType<Control>().Any(c => c.DataContext == target))
+                .ElementAtOrDefault(level);
             if (tabs is null || index >= tabs.Items.Count) return;
             tabs.SelectedIndex = index;
             e.Handled = true;
@@ -77,15 +78,13 @@ public partial class Repl : Window
 
                 try
                 {
-                    var binding = new AlEvaluation.Binding<Value>("value", target);
-                    var result = await al.QueryAl(AlEvaluation.binding_to_query(binding), null);
-                    var child = SolutionView.Inspector(binding, result);
+                    var child = new Inspector { Views = await al.Inspect(target, null) };
                     Flow.Children.Add(child);
                     Dispatcher.UIThread.Post(child.BringIntoView, DispatcherPriority.Loaded);
                 }
                 catch (Exception error)
                 {
-                    Flow.Children.Add(PhlowBuilder.RenderText(error.Message));
+                    Flow.Children.Add(ReadOnlyText.Create(error.Message));
                 }
             }
         }, RoutingStrategies.Tunnel);

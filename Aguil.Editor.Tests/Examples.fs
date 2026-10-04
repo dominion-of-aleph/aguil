@@ -4,12 +4,9 @@ module Aguil.Editor.Examples
 open System
 open System.Threading
 open System.Windows.Input
-open Aguil.ALViews
 open Aguil.Core
-open Aguil.Core.AlEvaluation
+open Aguil.Core.MCP.Evaluation
 open Aguil.Core.AlValues
-open Aguil.Inspection
-open Aguil.ViewModels
 open Avalonia
 open Avalonia.Controls
 open Avalonia.Headless
@@ -153,14 +150,14 @@ let lineKeys () =
 type CommandLog() =
     member val Runs: string list = [] with get, set
 
-    member private this.Logging name = {
-        new ICommand with
+    member private this.Logging name =
+        { new ICommand with
             member _.CanExecute _ = true
             member _.Execute _ = this.Runs <- this.Runs @ [ name ]
 
             [<CLIEvent>]
             member _.CanExecuteChanged = Event<EventHandler, EventArgs>().Publish
-    }
+        }
 
     member this.PreviousInputCommand = this.Logging "PreviousInput"
     member this.CancelCommand = this.Logging "Cancel"
@@ -224,51 +221,6 @@ let markSelection () =
             Key.F, RawInputModifiers.Control
         ]
 
-/// The map a text view sends across the bridge.
-let textView title priority text =
-    Map.ofList [
-        AlAtom "view", AlText "text"
-        AlAtom "title", AlText title
-        AlAtom "priority", AlInteger priority
-        AlAtom "text", AlText text
-    ]
-
-/// A text view given an open list instead of a string.
-let invalidTextView () =
-    textView "Invalid" 10I ""
-    |> Map.add
-        (AlAtom "text")
-        (AlImproperList([ AlList [ AlText "one"; AlText "two" ] ], AlVar "tail"))
-
-/// A plain text editor; callers choose how to display it.
-let plainEditor () = PhlowBuilder.Render(textView "Text" 100I "x = 1") :?> TextEditor
-
-/// The text description requests source highlighting.
-let sourceEditor () =
-    textView "Source" 100I "x = 1"
-    |> Map.add (AlAtom "grammar") (AlText "elixir")
-    |> PhlowBuilder.Render
-    :?> TextEditor
-
-/// Enough lines to explore scrolling and resizing.
-let longEditor () =
-    let editor = plainEditor ()
-    editor.Text <- String.replicate 100 "a line\n"
-    editor
-
-/// A target belongs to the item; its label inherits it.
-let targetItem target =
-    let item = Border(Child = TextBlock(Text = string target))
-    InspectionTarget.SetTarget(item, target)
-    item
-
-/// Independent item targets in an ordinary list.
-let targetList () = ListBox(ItemsSource = [ targetItem "one"; targetItem "two" ])
-
-/// Hosts a control in an inline preview; the caller owns showing and closing the window.
-let previewWindow content =
-    Window(Content = SolutionView.Preview content, SizeToContent = SizeToContent.Height, Width = 400.)
-
 /// An evaluation assembled from bindings, without contacting AL.
 let evaluation bindings =
     let empty = { Values = []; Failures = [] }
@@ -284,49 +236,23 @@ let evaluation bindings =
         HasPotentialSolution = false
     }
 
-/// A raw result panel that can be embedded in any host.
-let rawView result =
-    let panel = StackPanel()
-    ResultView.SetResult(panel, result)
-    panel
-
-/// Two bindings; the first has two views supplied in reverse priority order.
-let viewSolution () =
-    let views = [
-        "first", [ textView "Later" 200I "later"; textView "Earlier" 10I "earlier" ]
-        "second", [ textView "Text" 100I "second" ]
+/// A retained source row in the history query's wire format.
+let historyRow tx kind source =
+    AlList [
+        AlInteger tx
+        AlText source
+        AlMap(Map.ofList [ AlAtom "kind", AlAtom kind ])
     ]
 
-    {
-        Result = evaluation [ for name, _ in views -> name, AlText name ]
-        Views =
-            Map.ofList [
-                for name, descriptions in views ->
-                    name, evaluation [ "maps", AlList(List.map AlMap descriptions) ]
-            ]
-    }
+/// Authored inputs interleaved with an internal run and our own history query.
+let historyRows () = [
+    historyRow 1I "eval_source" "x = 1"
+    historyRow 2I "transaction_program" "x = 2"
+    historyRow 3I "eval_source" MCP.History.query
+    historyRow 4I "eval_source" "vm_transaction_source(tx, text, origin)"
+    historyRow 5I "eval_source" "y = 2"
+    historyRow 6I "eval_source" "x = 1"
+]
 
-/// A REPL entry whose solution can be inspected or replaced without a server.
-let viewEntry () = ReplSuccess("example", viewSolution (), AlMcpClient())
-
-/// Two independent entries, with the earlier one selected.
-let viewRepl () =
-    let window = Aguil.Views.Repl(Width = 700., Height = 500.)
-    let vm = window.DataContext :?> ReplViewModel
-    vm.History.Add(viewEntry ())
-    vm.History.Add(viewEntry ())
-    vm.Selected <- vm.History[0]
-    window
-
-/// Evaluates source into a live entry; its commands remain available to the caller.
-let queryEntry source =
-    task {
-        let client = AlMcpClient()
-        let! result, views = client.QueryAlViews(source, null)
-        return ReplSuccess(source, { Result = result; Views = views }, client)
-    }
-
-/// Starts at the first answer; use NextCommand and PrevCommand to explore the remaining answers.
-let answerEntry () =
-    queryEntry
-        "member([\"one\", \"two\"], answer); new(:phlow_text, %{title: \"Answer\", text: answer}, output)"
+/// Filter a history result without contacting AL or depending on its stored inputs.
+let historyInputs () = evaluation [ "inputs", AlList(historyRows ()) ] |> MCP.History.fromQuery

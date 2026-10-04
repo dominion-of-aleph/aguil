@@ -7,7 +7,7 @@
         x:Class="Aguil.Views.Repl"
         xmlns:vm="using:Aguil.ViewModels"
         xmlns:editor="using:Aguil.Editor"
-        xmlns:alviews="using:Aguil.ALViews"
+        xmlns:views="using:Aguil.Views"
         x:DataType="vm:ReplViewModel"
         FontSize="16"
         Title="Repl">
@@ -24,12 +24,6 @@
             <Setter Property="Height" Value="1" />
             <Setter Property="Margin" Value="0,6" />
             <Setter Property="Background" Value="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
-        </Style>
-        <Style Selector="Border.binding">
-            <Setter Property="BorderBrush" Value="Transparent" />
-        </Style>
-        <Style Selector="Border.binding:pointerover">
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundAccentBrush}" />
         </Style>
         <Style Selector="TabItem">
             <Setter Property="MinHeight" Value="0" />
@@ -104,8 +98,10 @@
                                                 <!-- Change to a tab view -->
                                                 <DataTemplate x:DataType="vm:ReplSuccess">
                                                     <StackPanel>
-                                                        <TabControl Classes="result-tabs" Padding="0"
-                                                                    alviews:SolutionView.Solution="{Binding Solution}" />
+                                                        <views:InlinePreview>
+                                                            <views:Inspector Classes="result-tabs"
+                                                                             Views="{Binding Views}" />
+                                                        </views:InlinePreview>
                                                         <StackPanel Orientation="Horizontal" Spacing="4"
                                                                     Margin="0,4,0,0">
                                                             <Button Command="{Binding PrevCommand}"

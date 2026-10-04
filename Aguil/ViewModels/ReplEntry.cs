@@ -1,8 +1,11 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
-using Aguil.Core;
+using Aguil.Core.MCP;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.FSharp.Collections;
+using Value = Aguil.Core.AlValues.AlValue;
 
 namespace Aguil.ViewModels;
 
@@ -21,17 +24,18 @@ public sealed partial class ReplSuccess : ReplEntry
 {
     private readonly AlMcpClient _al;
 
-    public ReplSuccess(string source, AlEvaluation.Solution first, AlMcpClient al)
+    public ReplSuccess(string source, Evaluation.Solution first, AlMcpClient al)
         : base(source)
     {
         _al = al;
         Solutions.Add(first);
     }
 
-    public ObservableCollection<AlEvaluation.Solution> Solutions { get; } = [];
+    public ObservableCollection<Evaluation.Solution> Solutions { get; } = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Solution))]
+    [NotifyPropertyChangedFor(nameof(Views))]
     [NotifyPropertyChangedFor(nameof(Result))]
     [NotifyPropertyChangedFor(nameof(Position))]
     [NotifyCanExecuteChangedFor(nameof(PrevCommand))]
@@ -42,11 +46,13 @@ public sealed partial class ReplSuccess : ReplEntry
     [NotifyCanExecuteChangedFor(nameof(NextCommand))]
     public partial bool Exhausted { get; set; }
 
-    public AlEvaluation.Solution Solution => Solutions[Index];
+    public Evaluation.Solution Solution => Solutions[Index];
 
-    public AlEvaluation.EvaluationContext Result => Solution.Result;
+    public IEnumerable<FSharpMap<Value, Value>> Views => Core.MCP.Views.fromSolution(Solution);
 
-    public AlEvaluation.EvaluationContext Frontier => Solutions[^1].Result;
+    public Evaluation.EvaluationContext Result => Solution.Result;
+
+    public Evaluation.EvaluationContext Frontier => Solutions[^1].Result;
 
     public string Position => $"{Index + 1}/{Solutions.Count}";
 
@@ -68,7 +74,7 @@ public sealed partial class ReplSuccess : ReplEntry
         }
 
         // hasPotentialSolution does not promise an answer, exhaustion comes back as a failure
-        AlEvaluation.EvaluationContext result;
+        Evaluation.EvaluationContext result;
         try
         {
             result = await _al.NextSolution(Frontier.Context);
@@ -80,7 +86,7 @@ public sealed partial class ReplSuccess : ReplEntry
         }
 
         var views = await _al.AlViewsFromQuery(result, null);
-        Solutions.Add(new AlEvaluation.Solution(result, views));
+        Solutions.Add(new Evaluation.Solution(result, views));
         Index = Solutions.Count - 1;
     }
 

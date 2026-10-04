@@ -1,7 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 
-namespace Aguil.Inspection;
+namespace Aguil.Phlow;
 
 public static class InspectionTarget
 {

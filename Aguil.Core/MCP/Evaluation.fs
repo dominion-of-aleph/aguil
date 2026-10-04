@@ -1,4 +1,4 @@
-module Aguil.Core.AlEvaluation
+module Aguil.Core.MCP.Evaluation
 
 open Aguil.Core.AlValues
 
@@ -59,4 +59,4 @@ type EvaluationContext = {
 
     override c.ToString() = c.Pretty 80
 
-type Solution = { Result: EvaluationContext; Views: Map<string, EvaluationContext> }
+type Solution = { Result: EvaluationContext; Views: Map<string, Map<AlValue, AlValue> list> }
