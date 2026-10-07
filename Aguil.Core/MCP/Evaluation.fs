@@ -20,7 +20,7 @@ let view_query (value: AlValue) =
     {
         Output = prefix + "maps"
         Source =
-            $"new(:view_builder, %%{{}}, {prefix}builder); "
+            $"new(:phlow_builder, %%{{}}, {prefix}builder); "
             + $"findall({prefix}map, {prefix}maps) do; view({source}, {prefix}builder, {prefix}phlow); to_map({prefix}phlow, {prefix}map); end"
     }
 
