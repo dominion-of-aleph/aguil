@@ -65,7 +65,7 @@ type Facts(output: ITestOutputHelper) =
                 window.Close())
 
     [<Fact>]
-    member _.ClosingKeepsOtherPanesInPlace() =
+    member _.ClosingCompactsColumns() =
         onUi (fun () ->
             let window = paneFork ()
 
@@ -75,7 +75,7 @@ type Facts(output: ITestOutputHelper) =
 
                 let panes = host.Panes |> Seq.map (fun p -> string p.Header, p) |> Map.ofSeq
 
-                let before = panes |> Map.map (fun _ pane -> paneRect window pane) |> see
+                let slots = host.Panes |> Seq.map (paneRect window) |> Seq.toArray |> see
 
                 for name in [ "B"; "X"; "C" ] do
                     host.Close(panes[name])
@@ -83,11 +83,11 @@ type Facts(output: ITestOutputHelper) =
                     let remaining =
                         host.Panes
                         |> Seq.map (fun p -> string p.Header, paneRect window p)
-                        |> Map.ofSeq
+                        |> Seq.toArray
                         |> see
 
-                    for KeyValue(name, bounds) in remaining do
-                        Assert.Equal(before[name], bounds)
+                    for index, (_, bounds) in Array.indexed remaining do
+                        Assert.Equal(slots[index], bounds)
             finally
                 window.Close())
 
@@ -217,6 +217,7 @@ type Facts(output: ITestOutputHelper) =
                 Assert.True(full.Width > half.Width)
                 Assert.Equal(window.ClientSize.Width, full.Width)
                 let x = openPane host a "X"
+                host.Move(x, 1, host.Columns.IndexOf(b.Column))
                 Assert.Equal(full.Width, (paneRect window x |> see).Width)
                 clickAction window x "Expand / restore column width"
                 Assert.Equal(half.Width, (paneRect window x |> see).Width)

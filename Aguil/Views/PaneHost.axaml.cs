@@ -43,9 +43,12 @@ public partial class PaneHost : Decorator
     {
         if (!Panes.Contains(source))
             throw new ArgumentException("The source must belong to this host.", nameof(source));
-        Grid.SetRow(pane, Grid.GetRow(source));
         source.Column!.IsExpanded = false;
-        Column(Columns.IndexOf(source.Column) + 1).Panes.Add(pane);
+        Column(0).IsExpanded = false;
+        Grid.SetRow(pane, 0);
+        var column = new PaneColumn();
+        column.Panes.Add(pane);
+        Columns.Insert(1, column);
     }
 
     public void Move(Pane pane, int row, int column)
@@ -105,6 +108,10 @@ public partial class PaneHost : Decorator
 
     private void PanesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        if (e.OldItems is not null)
+            foreach (var column in Columns.Cast<PaneColumn>().Skip(1)
+                         .Where(column => column.Panes.Count == 0 && ReferenceEquals(column.Panes, sender)).ToArray())
+                Columns.Remove(column);
         if (e.Action != NotifyCollectionChangedAction.Move)
             UpdateSelection(e.NewItems?.Cast<Pane>().LastOrDefault());
     }

@@ -4,6 +4,7 @@ using Aguil.Editor;
 using Aguil.Phlow;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Media;
 using AvaloniaEdit;
 using Microsoft.FSharp.Collections;
 using Value = Aguil.Core.AlValues.AlValue;
@@ -23,20 +24,18 @@ public static class ElementBuilder
 
         string Display(Value item)
         {
-            return item is Value.AlMap row
-                ? AlValues.text(field, row.Item)
-                : item is Value.AlText text
-                    ? text.Item
-                    : item.ToString();
+            var value = item is Value.AlMap row ? row.Item[Value.NewAlAtom(field)] : item;
+            return value is Value.AlText text ? text.Item : value.ToString();
         }
 
         return AlValues.text("element", fields) switch
         {
-            "text" => new Stencil<Value, TextBlock>(() => new TextBlock(), (control, item) =>
-            {
-                control.Text = Display(item);
-                BindTarget(control, item);
-            }),
+            "text" => new Stencil<Value, TextBlock>(() => new TextBlock { Background = Brushes.Transparent },
+                (control, item) =>
+                {
+                    control.Text = Display(item);
+                    BindTarget(control, item);
+                }),
             "editor" => new Stencil<Value, TextEditor>(() => ReadOnlyText.CreateCell(grammar), (control, item) =>
             {
                 control.Text = Display(item);
