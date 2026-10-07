@@ -1,11 +1,15 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Aguil.Elements;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
+using Avalonia.Data.Converters;
 using Avalonia.Styling;
+using Value = Aguil.Core.AlValues.AlValue;
 
 namespace Aguil.Phlow;
 
@@ -19,6 +23,10 @@ public class ColumnedList(IEnumerable items, IEnumerable<TableViewColumn> column
         {
             Setters =
             {
+                new Setter(InspectionTarget.TargetProperty, new Binding(".")
+                {
+                    Converter = new FuncValueConverter<Value, Value?>(ElementBuilder.Target)
+                }),
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(0)),
                 new Setter(Control.MinHeightProperty, 0d)
             }

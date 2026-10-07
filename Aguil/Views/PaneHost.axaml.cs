@@ -49,6 +49,7 @@ public partial class PaneHost : Decorator
         var column = new PaneColumn();
         column.Panes.Add(pane);
         Columns.Insert(1, column);
+        Dispatcher.UIThread.Post(Scroll.ScrollToHome, DispatcherPriority.Loaded);
     }
 
     public void Move(Pane pane, int row, int column)

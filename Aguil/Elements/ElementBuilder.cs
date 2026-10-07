@@ -34,22 +34,21 @@ public static class ElementBuilder
                 (control, item) =>
                 {
                     control.Text = Display(item);
-                    BindTarget(control, item);
+                    InspectionTarget.SetTarget(control, Target(item));
                 }),
             "editor" => new Stencil<Value, TextEditor>(() => ReadOnlyText.CreateCell(grammar), (control, item) =>
             {
                 control.Text = Display(item);
-                BindTarget(control, item);
+                InspectionTarget.SetTarget(control, Target(item));
             }),
             var kind => throw new NotSupportedException($"Unknown element: {kind}")
         };
     }
 
-    private static void BindTarget(Control control, Value item)
+    public static Value? Target(Value? item)
     {
-        InspectionTarget.SetTarget(control,
-            item is Value.AlMap row && row.Item.TryGetValue(Value.NewAlAtom("target"), out var target)
-                ? target
-                : null);
+        return item is Value.AlMap row && row.Item.TryGetValue(Value.NewAlAtom("target"), out var target)
+            ? target
+            : null;
     }
 }
