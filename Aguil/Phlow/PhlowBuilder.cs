@@ -52,12 +52,15 @@ public static class PhlowBuilder
         }
     }
 
-    private static TableViewColumn Column(FSharpMap<Value, Value> fields) => new()
+    private static TableViewColumn Column(FSharpMap<Value, Value> fields)
     {
-        Header = fields.TryGetValue(Value.NewAlAtom("title"), out var title) && title is Value.AlText text
-            ? text.Item
-            : null,
-        CellTemplate = ElementBuilder.Template(fields),
-        Width = GridLength.Auto
-    };
+        return new TableViewColumn
+        {
+            Header = fields.TryGetValue(Value.NewAlAtom("title"), out var title) && title is Value.AlText text
+                ? text.Item
+                : null,
+            CellTemplate = ElementBuilder.Template(fields),
+            Width = GridLength.Auto
+        };
+    }
 }

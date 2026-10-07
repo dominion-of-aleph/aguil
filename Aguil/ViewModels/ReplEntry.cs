@@ -1,6 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
+using Aguil.Core;
 using Aguil.Core.MCP;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -22,47 +25,75 @@ public sealed class ReplFailure(string source, string error) : ReplEntry(source)
 [ObservableObject]
 public sealed partial class ReplSuccess : ReplEntry
 {
+    // the search can be unbounded, so stop and leave Next enabled rather than being Hina
+    private const int Batch = 100;
     private readonly AlMcpClient _al;
 
-    public ReplSuccess(string source, Evaluation.Solution first, AlMcpClient al)
+    public ReplSuccess(string source, Answer first, AlMcpClient al)
         : base(source)
     {
         _al = al;
         Solutions.Add(first);
+        Solutions.CollectionChanged += (_, _) =>
+        {
+            var index = Math.Clamp(Index, 0, Math.Max(0, Solutions.Count - 1));
+            if (index != Index) Index = index;
+            else Refresh();
+        };
     }
 
-    public ObservableCollection<Evaluation.Solution> Solutions { get; } = [];
+    public ObservableCollection<Answer> Solutions { get; } = [];
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Solution))]
-    [NotifyPropertyChangedFor(nameof(Views))]
-    [NotifyPropertyChangedFor(nameof(Result))]
-    [NotifyPropertyChangedFor(nameof(Position))]
-    [NotifyCanExecuteChangedFor(nameof(PrevCommand))]
-    [NotifyCanExecuteChangedFor(nameof(NextCommand))]
-    public partial int Index { get; set; }
+    [ObservableProperty] public partial int Index { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(NextCommand))]
     public partial bool Exhausted { get; set; }
 
-    public Evaluation.Solution Solution => Solutions[Index];
+    public Evaluation.Solution? Solution => Solutions.ElementAtOrDefault(Index)?.Solution;
 
-    public IEnumerable<FSharpMap<Value, Value>> Views => Core.MCP.Views.fromSolution(Solution);
+    public Inspection? Inspection => Solutions.ElementAtOrDefault(Index);
 
-    public Evaluation.EvaluationContext Result => Solution.Result;
+    public IEnumerable<FSharpMap<Value, Value>> Views =>
+        Solution is { } solution ? Core.MCP.Views.fromSolution(solution) : [];
 
-    public Evaluation.EvaluationContext Frontier => Solutions[^1].Result;
+    public Evaluation.EvaluationContext? Result => Solution?.Result;
 
-    public string Position => $"{Index + 1}/{Solutions.Count}";
+    public Evaluation.EvaluationContext? Frontier => Solutions.LastOrDefault()?.Solution.Result;
 
-    private bool CanPrev() => Index > 0;
+    public string Position => $"{(Solution is null ? 0 : Index + 1)}/{Solutions.Count}";
 
-    private bool CanNext() =>
-        Index < Solutions.Count - 1 || (Frontier.HasPotentialSolution && !Exhausted);
+    partial void OnIndexChanged(int value)
+    {
+        Refresh();
+    }
+
+    private bool CanPrev()
+    {
+        return Solution is not null && Index > 0;
+    }
+
+    private bool CanNext()
+    {
+        return Index < Solutions.Count - 1 || (Frontier is { HasPotentialSolution: true } && !Exhausted);
+    }
+
+    private void Refresh()
+    {
+        OnPropertyChanged(nameof(Solution));
+        OnPropertyChanged(nameof(Views));
+        OnPropertyChanged(nameof(Inspection));
+        OnPropertyChanged(nameof(Result));
+        OnPropertyChanged(nameof(Position));
+        PrevCommand.NotifyCanExecuteChanged();
+        NextCommand.NotifyCanExecuteChanged();
+    }
 
     [RelayCommand(CanExecute = nameof(CanPrev))]
-    private void Prev() => Index--;
+    private void Prev()
+    {
+        Index--;
+    }
 
     [RelayCommand(CanExecute = nameof(CanNext))]
     private async Task Next()
@@ -73,11 +104,13 @@ public sealed partial class ReplSuccess : ReplEntry
             return;
         }
 
+        if (Frontier is not { } frontier) return;
+
         // hasPotentialSolution does not promise an answer, exhaustion comes back as a failure
         Evaluation.EvaluationContext result;
         try
         {
-            result = await _al.NextSolution(Frontier.Context);
+            result = await _al.NextSolution(frontier.Context);
         }
         catch (AlException)
         {
@@ -86,12 +119,9 @@ public sealed partial class ReplSuccess : ReplEntry
         }
 
         var views = await _al.AlViewsFromQuery(result, null);
-        Solutions.Add(new Evaluation.Solution(result, views));
+        Solutions.Add(new Answer(new Evaluation.Solution(result, views)));
         Index = Solutions.Count - 1;
     }
-
-    // the search can be unbounded, so stop and leave Next enabled rather than being Hina
-    private const int Batch = 100;
 
     [RelayCommand]
     private async Task AllSolutions()

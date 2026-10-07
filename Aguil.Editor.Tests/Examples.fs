@@ -7,6 +7,9 @@ open System.Windows.Input
 open Aguil.Core
 open Aguil.Core.MCP.Evaluation
 open Aguil.Core.AlValues
+open Aguil.Views
+open Aguil.ViewModels
+open Aguil.Phlow
 open Avalonia
 open Avalonia.Controls
 open Avalonia.Headless
@@ -14,6 +17,7 @@ open Avalonia.Input
 open Avalonia.Markup.Xaml.Styling
 open Avalonia.Themes.Fluent
 open Avalonia.Threading
+open Avalonia.VisualTree
 open AvaloniaEdit
 open TreeSitter
 
@@ -150,14 +154,14 @@ let lineKeys () =
 type CommandLog() =
     member val Runs: string list = [] with get, set
 
-    member private this.Logging name =
-        { new ICommand with
+    member private this.Logging name = {
+        new ICommand with
             member _.CanExecute _ = true
             member _.Execute _ = this.Runs <- this.Runs @ [ name ]
 
             [<CLIEvent>]
             member _.CanExecuteChanged = Event<EventHandler, EventArgs>().Publish
-        }
+    }
 
     member this.PreviousInputCommand = this.Logging "PreviousInput"
     member this.CancelCommand = this.Logging "Cancel"
@@ -236,6 +240,12 @@ let evaluation bindings =
         HasPotentialSolution = false
     }
 
+/// Ask AL for the views of supplied bindings; the keys remain their display names.
+let viewsFor bindings = MCP.AlMcpClient().AlViewsFromQuery(evaluation bindings, null).Result
+
+/// A map containing two references to the same unbound variable.
+let partialMap name = AlMap(Map.ofList [ AlAtom "slot", AlList [ AlVar name; AlVar name ] ])
+
 /// A retained source row in the history query's wire format.
 let historyRow tx kind source =
     AlList [
@@ -256,3 +266,104 @@ let historyRows () = [
 
 /// Filter a history result without contacting AL or depending on its stored inputs.
 let historyInputs () = evaluation [ "inputs", AlList(historyRows ()) ] |> MCP.History.fromQuery
+
+/// An answer owns its inspection identity independently of its position in a result list.
+let answer bindings =
+    Answer(
+        {
+            Result = evaluation bindings
+            Views = Map.ofList [ for name, _ in bindings -> name, [] ]
+        }
+    )
+
+/// An ordinary control framed as a pane; callers can replace its content.
+let pane title = Pane(Header = title, Content = TextBox(Text = title))
+
+/// A column owns its panes and can be populated before joining a workspace.
+let paneColumn titles =
+    let column = PaneColumn()
+
+    for title in titles do
+        column.Panes.Add(pane title)
+
+    column
+
+/// A window to show and extend on the UI thread, with one full-width pane.
+let paneWindow () =
+    let host = PaneHost()
+    host.Columns.Add(paneColumn [ "A" ])
+    Window(Content = host, Width = 1000, Height = 600)
+
+/// Open another ordinary control to the right of its source.
+let openPane (host: PaneHost) source title =
+    let child = pane title
+    host.Open(child, source)
+    child
+
+/// Two openings from A, each with another pane opened from it.
+let paneFork () =
+    let window = paneWindow ()
+    let host = window.Content :?> PaneHost
+    let a = Seq.head host.Panes
+    let b = openPane host a "B"
+    let x = openPane host a "X"
+    openPane host b "C" |> ignore
+    openPane host x "Y" |> ignore
+    window
+
+/// A pane's visible rectangle, independent of how the host arranges it.
+let paneRect (window: Window) (pane: Pane) =
+    Dispatcher.UIThread.RunJobs()
+    Rect(pane.TranslatePoint(Avalonia.Point(), window).Value, pane.Bounds.Size)
+
+/// Exercise a control through the window's normal pointer route.
+let click (window: Window) (control: Control) button =
+    Dispatcher.UIThread.RunJobs()
+
+    let at =
+        control
+            .TranslatePoint(
+                Avalonia.Point(control.Bounds.Width / 2.0, control.Bounds.Height / 2.0),
+                window
+            )
+            .Value
+
+    window.MouseDown(at, button, RawInputModifiers.None)
+    window.MouseUp(at, button, RawInputModifiers.None)
+    Dispatcher.UIThread.RunJobs()
+
+/// Click an action by its visible tooltip, independent of its position or button type.
+let clickAction window (control: Control) tooltip =
+    let button =
+        control.GetVisualDescendants()
+        |> Seq.choose (function
+            | :? Button as b -> Some b
+            | _ -> None)
+        |> Seq.find (fun b -> ToolTip.GetTip(b) = box tooltip)
+
+    click window button MouseButton.Left
+
+/// A REPL with a supplied answer; no evaluation is needed to explore its inline inspector.
+let replAnswer bindings =
+    let window = Repl(Width = 1000, Height = 600)
+    let model = window.DataContext :?> ReplViewModel
+
+    model.History.Add(ReplSuccess("example", answer bindings, MCP.AlMcpClient()))
+    window
+
+/// Middle-click a displayed target through the same inherited marker as the REPL.
+let inspectTarget (window: Window) value =
+    Dispatcher.UIThread.RunJobs()
+
+    let control =
+        window.GetVisualDescendants()
+        |> Seq.choose (function
+            | :? Control as c -> Some c
+            | _ -> None)
+        |> Seq.find (fun c ->
+            c.IsEffectivelyVisible
+            && c.Bounds.Width > 0
+            && c.Bounds.Height > 0
+            && InspectionTarget.GetTarget(c) = box value)
+
+    click window control MouseButton.Middle

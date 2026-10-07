@@ -1,0 +1,24 @@
+<Grid xmlns="https://github.com/avaloniaui"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      x:Class="Aguil.Views.InlinePreview"
+      RowDefinitions="Auto,Auto">
+    <Grid.Styles>
+        <Style Selector="Thumb.preview-resize">
+            <Setter Property="Height" Value="6" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="Transparent">
+                        <Border Height="2" Width="32" CornerRadius="1" VerticalAlignment="Center"
+                                Background="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+    </Grid.Styles>
+
+    <Grid.Children>
+        <ContentControl Name="Viewport" MaxHeight="240" />
+        <Thumb Grid.Row="1" Classes="preview-resize" Cursor="SizeNorthSouth"
+               ToolTip.Tip="Drag to resize preview" DragDelta="Resize" />
+    </Grid.Children>
+</Grid>

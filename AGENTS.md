@@ -9,7 +9,18 @@ Generic, composable components pay off. Follow the general conventions: generali
 don't special-case. Express differences as data and compose existing controls before
 adding another rendering path. Prefer Avalonia's components over custom layout machinery.
 
-- `Aguil/Views` contains Avalonia UI hosts: `Repl`, `Inspector`, and `InlinePreview`.
+- Keep provenance separate from placement. Never infer an opening's source from coordinates
+  or visual proximity. Source relationships guide initial placement; they do not constrain later
+  moves or make closing one pane rearrange its descendants. Let Avalonia arrange the controls.
+- State belongs to the scope it controls, with one authoritative owner. If an action affects a
+  whole column, its controls must read and change that column's state; individual pane flags
+  must not compete to determine the shared result.
+- Every exposed mutation path must preserve the same invariants. Keep selection and lifecycle
+  updates at the collection's owning boundary so ordinary add/remove operations and UI commands
+  behave consistently. A convenience method must not be the only path that keeps state valid.
+
+- `Aguil/Views` contains Avalonia UI hosts: `Repl`, `Inspector`, `InlinePreview`, `Pane`,
+  `PaneColumn`, and `PaneHost`.
   `Inspector` orders and hosts tabs; `InlinePreview` supplies the REPL's height cap and
   resize grip. Allocation of screen space belongs to the host.
 - ALViews means object-provided inspection views in the GT/Phlow sense. AL discovers
@@ -39,19 +50,53 @@ It carries the value to inspect. Individual list items/cells can have their own 
 a view need not have one. Rebinding must replace or clear a stale target.
 Keep text access independent of layout for future history search and selection across controls.
 
-## Next layout work (planned)
+## Pane layout
 
-The current REPL appends inspectors horizontally. The pane model below is the agreed direction,
-not implemented behavior:
+`Pane` is an Avalonia `HeaderedContentControl` with a template for expand/close actions.
+Its native `Header` and `Content` properties accept data or controls; the inspection target
+supplies the header. `PaneHost` scrolls a horizontal strip of `PaneColumn` views; each column
+scrolls its own Grid vertically. `PaneHost.Columns` is the strip's native child collection;
+`PaneColumn.Panes` is the column Grid's native child collection. These are the owners.
+`PaneHost.Panes` only enumerates them, and `Pane.Column` reads Avalonia's logical parent chain.
+There is no second collection or stored owner to synchronize. Columns can be populated before
+joining a host. Grid rows record placement within a column; `Aguil.Core/Layout.fs` finds a free row.
+
+The initial allocation uses full-height rows, a full-width lone column, and half-width columns
+otherwise. `PaneColumn` owns expansion; every pane header in that column binds to the same state.
+Slots and their allocations survive individual closes, so other panes do not jump or resize.
+Closing a column's last pane leaves that column and its slots available. Remove or clear
+`PaneHost.Columns` to discard columns. Each collection's owning control handles its lifecycle;
+the host observes membership changes to keep selection valid. Native validation rejects panes
+in the host's column collection and non-pane controls in a column before insertion.
+
+Layout policy will move to AL's scene and pane model, which supplies constraints to the UI.
+Keep the native control composition separate from that policy and from inspection provenance.
+
+`Aguil.Core/Inspection.fs` records a target and its source inspection independently of controls.
+`ReplViewModel.Inspections` retains these openings for the session. Each REPL `Answer` owns its
+inspection identity, independent of its index in the solutions collection. The inheritable
+attached property `Inspector.Inspection` carries the source to targets.
+Moving or closing panes does not erase those links. Alternative layouts and a provenance view
+can later use that same history without deriving it from positions.
+
+Inspection source links describe the exact value or answer: several inline inspections can share
+one REPL pane. Pane placement does not need a second provenance tree.
 
 - A REPL result hosts a small inline inspector. Evaluating input does not create a new column.
 - Middle-clicking a target opens an inspector pane immediately to the right of its source pane.
-  If A already has B to its right, another inspection X from A goes below B in that column.
-  Move B and its downstream branch upward together, preserving their visual provenance.
-- Each pane has expand and close controls at the top right. One pane can fill the available
-  space; additional panes share it. Halves, thirds, and full expansion are host allocation
-  policies; view size hints are requests subject to that policy.
-- Bring the new pane into view by scrolling. Closing B closes B alone for now.
+  Start at the source's row and use the next vacant slot in that column. Opening X beside A
+  leaves B and its descendants in place. Opening also restores the source column's normal width
+  to make room for the new inspector.
+- Pane actions sit at the top right; the REPL pane disables closing. One column fills the
+  available space; additional columns share it. Thirds and other allocation policies can follow.
+  View size hints remain requests subject to the host's allocation.
+- Bring an opened or moved pane into view by scrolling its column vertically and the workspace
+  horizontally. Other columns keep their vertical position, including the REPL's column.
+  Descendant bring-into-view requests stop at the column; only host navigation reveals the column
+  in the workspace, so an editor updating elsewhere cannot pull the workspace back.
+- Closing B closes B alone and leaves its slot empty; it does not scroll or pull another pane
+  into that space. `Move` changes current placement without changing inspection history.
+  Movement keybindings can follow.
 - Keep the selected inspection/pane distinct from keyboard focus so commands can target it
   while the REPL input retains focus.
 

@@ -11,9 +11,18 @@ type Binding<'a> = { Symbol: string; Value: 'a }
 /// Evaluated Terms, preserving failures
 type Decoded = { Values: Binding<AlValue> list; Failures: Binding<DecodeError> list }
 
-let binding_to_query ({ Symbol = name; Value = v }: Binding<AlValue>) =
-    "new(:view_builder, %{}, builder); "
-    + $"{name} = {v}; findall(map, maps) do; view({name}, builder, phlow); to_map(phlow, map); end"
+type ViewQuery = { Source: string; Output: string }
+
+let view_query (value: AlValue) =
+    let source = string value
+    let prefix = Seq.initInfinite (sprintf "aguil%d_") |> Seq.find (fun p -> not (source.Contains p))
+
+    {
+        Output = prefix + "maps"
+        Source =
+            $"new(:view_builder, %%{{}}, {prefix}builder); "
+            + $"findall({prefix}map, {prefix}maps) do; view({source}, {prefix}builder, {prefix}phlow); to_map({prefix}phlow, {prefix}map); end"
+    }
 
 
 [<RequireQualifiedAccess>]

@@ -15,12 +15,20 @@ public static class ElementBuilder
     public static IRecyclingDataTemplate Template(FSharpMap<Value, Value> fields)
     {
         var field = fields.TryGetValue(Value.NewAlAtom("field"), out var f) && f is Value.AlText name
-            ? name.Item : "text";
+            ? name.Item
+            : "text";
         var grammar = fields.TryGetValue(Value.NewAlAtom("grammar"), out var g) && g is Value.AlText source
-            ? source.Item : null;
-        string Display(Value item) => item is Value.AlMap row
-            ? AlValues.text(field, row.Item)
-            : item is Value.AlText text ? text.Item : item.ToString();
+            ? source.Item
+            : null;
+
+        string Display(Value item)
+        {
+            return item is Value.AlMap row
+                ? AlValues.text(field, row.Item)
+                : item is Value.AlText text
+                    ? text.Item
+                    : item.ToString();
+        }
 
         return AlValues.text("element", fields) switch
         {
@@ -38,8 +46,11 @@ public static class ElementBuilder
         };
     }
 
-    private static void BindTarget(Control control, Value item) =>
+    private static void BindTarget(Control control, Value item)
+    {
         InspectionTarget.SetTarget(control,
             item is Value.AlMap row && row.Item.TryGetValue(Value.NewAlAtom("target"), out var target)
-                ? target : null);
+                ? target
+                : null);
+    }
 }

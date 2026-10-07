@@ -1,0 +1,17 @@
+<TabControl xmlns="https://github.com/avaloniaui"
+            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            xmlns:phlow="using:Aguil.Phlow"
+            x:Class="Aguil.Views.Inspector"
+            Padding="0">
+    <TabControl.ItemTemplate>
+        <DataTemplate x:DataType="phlow:AlPhlowView">
+            <TextBlock Text="{Binding Title}" />
+        </DataTemplate>
+    </TabControl.ItemTemplate>
+    <TabControl.ContentTemplate>
+        <DataTemplate x:DataType="phlow:AlPhlowView">
+            <ContentPresenter Content="{Binding Content}"
+                              HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+        </DataTemplate>
+    </TabControl.ContentTemplate>
+</TabControl>

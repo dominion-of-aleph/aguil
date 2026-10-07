@@ -1,0 +1,47 @@
+<HeaderedContentControl xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:views="using:Aguil.Views"
+                        x:Class="Aguil.Views.Pane"
+                        BorderThickness="1" Background="Transparent" CornerRadius="4" ClipToBounds="True"
+                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+    <HeaderedContentControl.Styles>
+        <Style Selector="views|Pane">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+        </Style>
+        <Style Selector="views|Pane.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundAccentBrush}" />
+        </Style>
+    </HeaderedContentControl.Styles>
+
+    <HeaderedContentControl.HeaderTemplate>
+        <DataTemplate>
+            <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" MaxLines="1" />
+        </DataTemplate>
+    </HeaderedContentControl.HeaderTemplate>
+    <HeaderedContentControl.Template>
+        <ControlTemplate>
+            <Border BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                    Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}">
+                <Grid RowDefinitions="Auto,*">
+                    <DockPanel Margin="6,2">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4">
+                            <ToggleButton Content="↔" Focusable="False" Padding="6,0" MinHeight="0"
+                                          ToolTip.Tip="Expand / restore column width"
+                                          IsChecked="{Binding $parent[views:PaneColumn].IsExpanded, Mode=TwoWay}" />
+                            <Button Content="×" Focusable="False" Padding="6,0" MinHeight="0"
+                                    ToolTip.Tip="Close pane" IsVisible="{TemplateBinding CanClose}" Click="Close" />
+                        </StackPanel>
+                        <ContentPresenter Name="PART_HeaderPresenter" VerticalAlignment="Center"
+                                          Content="{TemplateBinding Header}"
+                                          ContentTemplate="{TemplateBinding HeaderTemplate}" />
+                    </DockPanel>
+                    <ContentPresenter Name="PART_ContentPresenter" Grid.Row="1" ClipToBounds="True"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                </Grid>
+            </Border>
+        </ControlTemplate>
+    </HeaderedContentControl.Template>
+</HeaderedContentControl>

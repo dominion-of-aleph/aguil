@@ -3,14 +3,14 @@ using System.Linq;
 using Aguil.Core.MCP;
 using Aguil.Editor;
 using Aguil.Phlow;
-using Value = Aguil.Core.AlValues.AlValue;
+using Aguil.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using Aguil.ViewModels;
+using Value = Aguil.Core.AlValues.AlValue;
 
 namespace Aguil.Views;
 
@@ -52,12 +52,14 @@ public partial class Repl : Window
             if (e.KeyModifiers != KeyModifiers.Alt && e.KeyModifiers != (KeyModifiers.Control | KeyModifiers.Alt))
                 return;
             var index = (int)e.Key - (int)Key.D1;
-            if (index is < 0 or > 8 || vm.Target is not { } target) return;
+            if (index is < 0 or > 8) return;
             var level = e.KeyModifiers.HasFlag(KeyModifiers.Control) ? 1 : 0;
-            var tabs = Entries.GetVisualDescendants().OfType<Inspector>().Where(t =>
-                    t.IsEffectivelyVisible &&
-                    t.GetVisualAncestors().Prepend(t).OfType<Control>().Any(c => c.DataContext == target))
-                .ElementAtOrDefault(level);
+            var inspectors = (Flow.Selected ?? ReplPane).GetVisualDescendants().OfType<Inspector>()
+                .Where(t => t.IsEffectivelyVisible);
+            if (Flow.Selected == ReplPane)
+                inspectors = inspectors.Where(t => t.GetVisualAncestors().Prepend(t)
+                    .OfType<Control>().Any(c => c.DataContext == vm.Target));
+            var tabs = inspectors.ElementAtOrDefault(level);
             if (tabs is null || index >= tabs.Items.Count) return;
             tabs.SelectedIndex = index;
             e.Handled = true;
@@ -72,19 +74,21 @@ public partial class Repl : Window
             if (e.Source is Control source &&
                 e.GetCurrentPoint(source).Properties.PointerUpdateKind
                 == PointerUpdateKind.MiddleButtonPressed &&
-                InspectionTarget.GetTarget(source) is Value target)
+                InspectionTarget.GetTarget(source) is Value target &&
+                source.GetVisualAncestors().Prepend(source).OfType<Pane>().FirstOrDefault() is { } parent)
             {
                 e.Handled = true;
-
+                var inspection = vm.OpenInspection(target, Inspector.GetInspection(source));
+                var pane = new Pane { Header = inspection.Target, Content = new TextBlock { Text = "Loading…" } };
+                Inspector.SetInspection(pane, inspection);
+                Flow.Open(pane, parent);
                 try
                 {
-                    var child = new Inspector { Views = await al.Inspect(target, null) };
-                    Flow.Children.Add(child);
-                    Dispatcher.UIThread.Post(child.BringIntoView, DispatcherPriority.Loaded);
+                    pane.Content = new Inspector { Views = await al.Inspect(target, null) };
                 }
                 catch (Exception error)
                 {
-                    Flow.Children.Add(ReadOnlyText.Create(error.Message));
+                    pane.Content = ReadOnlyText.Create(error.Message);
                 }
             }
         }, RoutingStrategies.Tunnel);
@@ -102,11 +106,13 @@ public partial class Repl : Window
 
     private async void CopyResult(object? sender, RoutedEventArgs e)
     {
-        if (sender is Button { DataContext: ReplSuccess entry } && Clipboard is { } clipboard)
-            await clipboard.SetTextAsync(entry.Result.Pretty(80));
+        if (sender is Button { DataContext: ReplSuccess { Result: { } result } } && Clipboard is { } clipboard)
+            await clipboard.SetTextAsync(result.Pretty(80));
     }
 
     // the new content has not been laid out yet when these fire
-    private void ScrollToEnd() =>
+    private void ScrollToEnd()
+    {
         Dispatcher.UIThread.Post(Scroll.ScrollToEnd, DispatcherPriority.Background);
+    }
 }

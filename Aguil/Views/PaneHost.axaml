@@ -1,0 +1,10 @@
+<Decorator xmlns="https://github.com/avaloniaui"
+           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+           x:Class="Aguil.Views.PaneHost">
+    <Decorator.Child>
+        <ScrollViewer Name="Scroll" HorizontalScrollBarVisibility="Hidden"
+                      VerticalScrollBarVisibility="Disabled" BringIntoViewOnFocusChange="False">
+            <StackPanel Name="ColumnStrip" Orientation="Horizontal" Spacing="6" />
+        </ScrollViewer>
+    </Decorator.Child>
+</Decorator>

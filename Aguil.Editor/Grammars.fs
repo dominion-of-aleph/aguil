@@ -2,7 +2,6 @@
 /// (Native/tree-sitter.targets) and found by its exported symbol, which static linking (browser, iOS) needs.
 module Aguil.Editor.Grammars
 
-open System
 open System.IO
 open System.Runtime.InteropServices
 open System.Threading.Tasks

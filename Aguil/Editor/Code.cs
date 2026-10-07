@@ -50,18 +50,35 @@ public static class Code
         });
     }
 
-    public static string? GetText(TextEditor editor) => editor.GetValue(TextProperty);
+    public static string? GetText(TextEditor editor)
+    {
+        return editor.GetValue(TextProperty);
+    }
 
-    public static void SetText(TextEditor editor, string? value) => editor.SetValue(TextProperty, value);
+    public static void SetText(TextEditor editor, string? value)
+    {
+        editor.SetValue(TextProperty, value);
+    }
 
-    public static string? GetGrammar(TextEditor editor) => editor.GetValue(GrammarProperty);
+    public static string? GetGrammar(TextEditor editor)
+    {
+        return editor.GetValue(GrammarProperty);
+    }
 
-    public static IReadOnlyDictionary<string, string>? GetKeymap(TextEditor editor) => editor.GetValue(KeymapProperty);
+    public static IReadOnlyDictionary<string, string>? GetKeymap(TextEditor editor)
+    {
+        return editor.GetValue(KeymapProperty);
+    }
 
-    public static void SetKeymap(TextEditor editor, IReadOnlyDictionary<string, string>? value) =>
+    public static void SetKeymap(TextEditor editor, IReadOnlyDictionary<string, string>? value)
+    {
         editor.SetValue(KeymapProperty, value);
+    }
 
-    public static void SetGrammar(TextEditor editor, string? value) => editor.SetValue(GrammarProperty, value);
+    public static void SetGrammar(TextEditor editor, string? value)
+    {
+        editor.SetValue(GrammarProperty, value);
+    }
 
     private static void Rebuild(TextEditor editor)
     {

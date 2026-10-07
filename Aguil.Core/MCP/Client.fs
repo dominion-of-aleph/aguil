@@ -148,9 +148,9 @@ type AlMcpClient(url: string) =
 
     member self.Inspect(value: AlValue, branch: string) =
         task {
-            let binding = { Symbol = "value"; Value = value }
-            let! result = self.QueryAl(binding_to_query binding, branch)
-            return Views.fromQuery result
+            let query = view_query value
+            let! result = self.QueryAl(query.Source, branch)
+            return Views.fromQuery query.Output result
         }
 
     member self.AlViewsFromQuery(results: EvaluationContext, branch: string) =
@@ -159,8 +159,8 @@ type AlMcpClient(url: string) =
                 results.Bindings.Values
                 |> Seq.map (fun b ->
                     task {
-                        let! view = self.QueryAl(binding_to_query b, branch)
-                        return b.Symbol, Views.fromQuery view
+                        let! views = self.Inspect(b.Value, branch)
+                        return b.Symbol, views
                     })
                 |> Task.WhenAll
 

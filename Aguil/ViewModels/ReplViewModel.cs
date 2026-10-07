@@ -4,22 +4,47 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Aguil.Core;
 using Aguil.Core.MCP;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.FSharp.Core;
 
 namespace Aguil.ViewModels;
 
 public partial class ReplViewModel : ObservableObject
 {
     private readonly AlMcpClient _al = new();
+    private string _draft = "";
+
+    // which input PreviousInput/NextInput show (null: a new one), and the new one put aside
+    private int? _recall;
 
     public ObservableCollection<ReplEntry> History { get; } = [];
+
+    public List<Inspection> Inspections { get; } = [];
 
     [ObservableProperty] public partial string Source { get; set; } = "";
 
     // what PreviousInput/NextInput walk, oldest first: earlier sessions' inputs from AL, then this one's
     public List<string> Inputs { get; } = [];
+
+    [ObservableProperty] public partial ReplEntry? Selected { get; set; }
+
+    public ReplSuccess? Target =>
+        Selected switch
+        {
+            ReplSuccess s => s,
+            null => History.OfType<ReplSuccess>().LastOrDefault(),
+            _ => null
+        };
+
+    public Inspection OpenInspection(object target, Inspection? source)
+    {
+        var inspection = new Inspection(target, source is null ? null : FSharpOption<Inspection>.Some(source));
+        Inspections.Add(inspection);
+        return inspection;
+    }
 
     public async Task LoadPreviousInputs()
     {
@@ -32,10 +57,6 @@ public partial class ReplViewModel : ObservableObject
             // AL isn't running: start without earlier inputs
         }
     }
-
-    // which input PreviousInput/NextInput show (null: a new one), and the new one put aside
-    private int? _recall;
-    private string _draft = "";
 
     [RelayCommand]
     private void PreviousInput()
@@ -66,7 +87,7 @@ public partial class ReplViewModel : ObservableObject
         try
         {
             var (result, views) = await _al.QueryAlViews(source, null);
-            entry = new ReplSuccess(source, new Evaluation.Solution(result, views), _al);
+            entry = new ReplSuccess(source, new Answer(new Evaluation.Solution(result, views)), _al);
         }
         catch (AlException e)
         {
@@ -77,19 +98,15 @@ public partial class ReplViewModel : ObservableObject
         Selected = entry;
     }
 
-    [ObservableProperty] public partial ReplEntry? Selected { get; set; }
-
-    public ReplSuccess? Target =>
-        Selected switch
-        {
-            ReplSuccess s => s,
-            null => History.OfType<ReplSuccess>().LastOrDefault(),
-            _ => null
-        };
+    [RelayCommand]
+    private Task NextSolution()
+    {
+        return Target?.NextCommand.ExecuteAsync(null) ?? Task.CompletedTask;
+    }
 
     [RelayCommand]
-    private Task NextSolution() => Target?.NextCommand.ExecuteAsync(null) ?? Task.CompletedTask;
-
-    [RelayCommand]
-    private Task AllSolutions() => Target?.AllSolutionsCommand.ExecuteAsync(null) ?? Task.CompletedTask;
+    private Task AllSolutions()
+    {
+        return Target?.AllSolutionsCommand.ExecuteAsync(null) ?? Task.CompletedTask;
+    }
 }

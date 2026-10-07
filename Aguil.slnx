@@ -1,7 +1,7 @@
 <Solution>
-  <Project Path="Aguil.Core/Aguil.Core.fsproj" />
-  <Project Path="Aguil.Editor/Aguil.Editor.fsproj" />
-  <Project Path="Aguil.Editor.Tests/Aguil.Editor.Tests.fsproj" />
-  <Project Path="Aguil.Tests/Aguil.Tests.csproj" />
-  <Project Path="Aguil/Aguil.csproj" />
+    <Project Path="Aguil.Core/Aguil.Core.fsproj"/>
+    <Project Path="Aguil.Editor/Aguil.Editor.fsproj"/>
+    <Project Path="Aguil.Editor.Tests/Aguil.Editor.Tests.fsproj"/>
+    <Project Path="Aguil.Tests/Aguil.Tests.csproj"/>
+    <Project Path="Aguil/Aguil.csproj"/>
 </Solution>

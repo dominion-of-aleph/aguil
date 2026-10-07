@@ -7,6 +7,8 @@
 
     <ItemGroup>
         <Compile Include="AlValues.fs"/>
+        <Compile Include="Inspection.fs"/>
+        <Compile Include="Layout.fs"/>
         <Compile Include="MCP/Evaluation.fs"/>
         <Compile Include="MCP/History.fs"/>
         <Compile Include="MCP/Views.fs"/>

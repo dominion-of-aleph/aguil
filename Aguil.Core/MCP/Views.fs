@@ -3,8 +3,8 @@ module Aguil.Core.MCP.Views
 open Aguil.Core.MCP.Evaluation
 open Aguil.Core.AlValues
 
-let fromQuery (result: EvaluationContext) =
-    (result.Bindings.Values |> List.find (fun b -> b.Symbol = "maps")).Value |> maps
+let fromQuery output (result: EvaluationContext) =
+    (result.Bindings.Values |> List.find (fun b -> b.Symbol = output)).Value |> maps
 
 let rows separator section = [
     for binding in section.Values ->

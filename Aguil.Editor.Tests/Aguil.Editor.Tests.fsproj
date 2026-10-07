@@ -21,6 +21,7 @@
     <ItemGroup>
         <ProjectReference Include="..\Aguil.Editor\Aguil.Editor.fsproj"/>
         <ProjectReference Include="..\Aguil.Core\Aguil.Core.fsproj"/>
+        <ProjectReference Include="..\Aguil\Aguil.csproj"/>
     </ItemGroup>
 
 </Project>
