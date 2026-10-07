@@ -22,6 +22,19 @@ type Facts(output: ITestOutputHelper) =
         snd example
 
     [<Fact>]
+    member _.QuotedValuesRoundTrip() =
+        for value in quotedValues () do
+            see (string value) |> ignore
+            Assert.Equal(value, roundTrip value |> see)
+
+    [<Fact>]
+    member _.MapMethodViews() =
+        let result = mapMethod () |> see
+        let bindings = result.Bindings.Values |> List.map (fun b -> b.Symbol, b.Value)
+        let views = viewsFor bindings |> see
+        Assert.Equal(bindings.Length, views.Count)
+
+    [<Fact>]
     member _.NamesDoNotChangeViews() =
         let names = [ "value"; "phlow"; "builder"; "map"; "maps"; "aguil0_maps" ]
 

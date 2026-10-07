@@ -243,6 +243,36 @@ let evaluation bindings =
 /// Ask AL for the views of supplied bindings; the keys remain their display names.
 let viewsFor bindings = MCP.AlMcpClient().AlViewsFromQuery(evaluation bindings, null).Result
 
+/// Enumerate a map method through AL before inspecting its returned values.
+let mapMethod () =
+    MCP.AlMcpClient().QueryAl("x = %{}\nclass(x, class)\nmethod(class, n, idd)", null).Result
+
+/// Parse a printed value through the same AL endpoint used by inspection.
+let roundTrip value =
+    let result = MCP.AlMcpClient().QueryAl("value = " + string value, null).Result
+    (result.Bindings.Values |> List.find (fun binding -> binding.Symbol = "value")).Value
+
+/// Atom names that require quoting, alone and as map keys.
+let quotedValues () =
+    let names = [
+        "map"
+        "#20"
+        ""
+        "with space"
+        "a:b"
+        "a\"b"
+        "a\\b"
+        "#{1 + 1}"
+        "a\nb"
+        "λ"
+    ]
+
+    [
+        for name in names do
+            AlAtom name
+            AlMap(Map.ofList [ AlAtom name, AlText name ])
+    ]
+
 /// A map containing two references to the same unbound variable.
 let partialMap name = AlMap(Map.ofList [ AlAtom "slot", AlList [ AlVar name; AlVar name ] ])
 
