@@ -20,13 +20,13 @@ type AlValue =
         let join xs = xs |> List.map AlValue.Flat |> String.concat ", "
 
         match v with
-        | AlAtom a -> $":{a}"
+        | AlAtom a -> ":" + AlValue.AtomName a
         | AlVar name -> name
         | AlInteger i -> string i
         | AlFloat f ->
             let s = f.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
             if s.Contains '.' || s.Contains 'E' then s else s + ".0"
-        | AlText s -> $"\"{s}\""
+        | AlText s -> AlValue.Quote s
         | AlBinary b -> $"<<{b.Length} bytes>>"
         | AlList xs -> $"[{join xs}]"
         | AlImproperList(xs, tail) -> $"[{join xs} | {AlValue.Flat tail}]"
@@ -38,9 +38,25 @@ type AlValue =
             |> String.concat ", "
             |> sprintf "%%{%s}"
 
+    static member private Quote(s: string) : string =
+        let escape =
+            function
+            | '\\' -> "\\\\"
+            | '"' -> "\\\""
+            | c when System.Char.IsControl c -> sprintf "\\u%04X" (int c)
+            | c -> string c
+
+        "\"" + (s |> Seq.map escape |> String.concat "").Replace("#{", "\\#{") + "\""
+
+    static member private AtomName(a: string) : string =
+        if System.Text.RegularExpressions.Regex.IsMatch(a, @"\A[a-zA-Z_][a-zA-Z_0-9]*[!?]?\z") then
+            a
+        else
+            AlValue.Quote a
+
     static member private MapKey(k: AlValue) : string =
         match k with
-        | AlAtom a -> $"{a}: "
+        | AlAtom a -> AlValue.AtomName a + ": "
         | _ -> $"{AlValue.Flat k} => "
 
 
