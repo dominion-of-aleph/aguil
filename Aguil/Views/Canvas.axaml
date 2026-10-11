@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="clr-namespace:Aguil.Views"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="Aguil.Views.Canvas"
+        Title="Canvas" Width="1100" Height="780"
+        x:DataType="views:WindowManager">
+    <ScrollViewer x:Name="Scroll" BringIntoViewOnFocusChange="False" HorizontalScrollBarVisibility="Hidden">
+
+        <ItemsControl x:Name="Windows" ItemsSource="{Binding Windows}">
+            <!-- General Layout -->
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Canvas Width="{Binding Extent.Width}"
+                            Height="{Binding Extent.Height}" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+
+            <!-- Position the generated container for each window. -->
+            <ItemsControl.Styles>
+                <Style Selector="ItemsControl#Windows > ContentPresenter"
+                       x:DataType="views:Window">
+                    <Setter Property="Canvas.Left" Value="{Binding Rect.X}" />
+                    <Setter Property="Canvas.Top" Value="{Binding Rect.Y}" />
+                    <Setter Property="Width" Value="{Binding Rect.Width}" />
+                    <Setter Property="Height" Value="{Binding Rect.Height}" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                </Style>
+            </ItemsControl.Styles>
+
+
+            <!-- General Window Looks -->
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="views:Window">
+                    <Border BorderBrush="Gray" BorderThickness="1"
+                            ClipToBounds="True">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="{Binding Title}" Margin="6,3" />
+                            <ContentControl Content="{Binding Content}"
+                                            HorizontalContentAlignment="Stretch"
+                                            VerticalContentAlignment="Stretch" />
+                        </DockPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </ScrollViewer>
+</Window>

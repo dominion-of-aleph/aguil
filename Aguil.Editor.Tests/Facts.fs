@@ -174,15 +174,16 @@ type Facts(output: ITestOutputHelper) =
 
             try
                 window.Show()
-                let model = window.DataContext :?> ReplViewModel
+                let repl = window.Content :?> Repl
+                let model = repl.DataContext :?> ReplViewModel
                 let source = model.History[0] :?> ReplSuccess
                 let first = source.Solution
-                let input = window.FindControl<AvaloniaEdit.TextEditor>("Input")
+                let input = repl.FindControl<AvaloniaEdit.TextEditor>("Input")
                 input.TextArea.Focus() |> ignore
                 inspectTarget window value
                 let opened = Assert.Single(model.Inspections)
                 Assert.Equal(box value, see opened.Target)
-                let host = window.FindControl<PaneHost>("Flow")
+                let host = repl.FindControl<PaneHost>("Flow")
                 let child = host.Selected
                 Assert.True(input.TextArea.IsFocused)
                 host.Move(child, 1, 2)

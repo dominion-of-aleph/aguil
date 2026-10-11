@@ -13,3 +13,27 @@
   let res = style "def foo(x) x + 3 end";;
   describe res;;
 #+end_src
+* Saving packages to AL
+- Write out the package
+
+  #+begin_src elixir
+    new(:package, %{name: :window_manager, version: 1, deps: [:views], redef: true}, :window_manager)
+
+    defclass :wm,
+             super: :object,
+             redef: true,
+             ivars: [%{name: :layout, type: :layout},
+                     %{name: :windows, type: :list}]
+             do end
+
+    set_slot(build, :status, :open)
+    active_build(:window_manager, build)
+    include_class(build, :wm)
+    include_method(build, :list, :as_greeting)
+  #+end_src
+
+- Then export in Elixir
+  #+begin_src elixir
+    AL.Package.export(:views, to: "./priv/packages/views")
+    AL.Package.export(:window_manager, to: "./priv/packages/window_manager")
+  #+end_src

@@ -14,7 +14,7 @@ using Value = Aguil.Core.AlValues.AlValue;
 
 namespace Aguil.Views;
 
-public partial class Repl : Window
+public partial class Repl : UserControl
 {
     public Repl()
     {
@@ -106,7 +106,8 @@ public partial class Repl : Window
 
     private async void CopyResult(object? sender, RoutedEventArgs e)
     {
-        if (sender is Button { DataContext: ReplSuccess { Result: { } result } } && Clipboard is { } clipboard)
+        if (sender is Button { DataContext: ReplSuccess { Result: { } result } } &&
+            TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
             await clipboard.SetTextAsync(result.Pretty(80));
     }
 
