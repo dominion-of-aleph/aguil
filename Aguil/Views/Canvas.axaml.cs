@@ -56,8 +56,10 @@ public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm) : Observa
         return new WindowManager(al, Evaluation.binding("wm", result));
     }
 
-    public async Task Spawn(AlPhlowView content, Window? on = null) =>
+    public async Task Spawn(AlPhlowView content, Window? on = null)
+    {
         await Spawn(await CSharpForward.ToAl(content, al), on);
+    }
 
     public async Task Spawn(AlValues.AlValue content, Window? on = null)
     {
@@ -141,8 +143,10 @@ public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm) : Observa
         return PhlowBuilder.Build(description.Item);
     }
 
-    private static Size WindowSize(AlValues.AlValue extent) =>
-        new(AlValues.number(AlValues.field("x", extent)), AlValues.number(AlValues.field("y", extent)));
+    private static Size WindowSize(AlValues.AlValue extent)
+    {
+        return new Size(AlValues.number(AlValues.field("x", extent)), AlValues.number(AlValues.field("y", extent)));
+    }
 
     private static Rect WindowRect(AlValues.AlValue window)
     {
@@ -155,11 +159,10 @@ public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm) : Observa
 
 public sealed class Window(string title, Control content, Rect rect, AlValues.AlValue id) : ObservableObject
 {
+    private Rect _rect = rect;
     public string Title { get; } = title;
     public Control Content { get; } = content;
     public AlValues.AlValue Id { get; } = id;
-
-    private Rect _rect = rect;
 
     public Rect Rect
     {

@@ -63,9 +63,9 @@ joining a host. Grid rows record placement within a column; `Aguil.Core/Layout.f
 
 The initial allocation uses full-height rows, a full-width lone column, and half-width columns
 otherwise. `PaneColumn` owns expansion; every pane header in that column binds to the same state.
-Slots and their allocations survive individual closes, so other panes do not jump or resize.
-Closing a column's last pane leaves that column and its slots available. Remove or clear
-`PaneHost.Columns` to discard columns. Each collection's owning control handles its lifecycle;
+Slots within a populated column survive individual closes. Closing a column's last pane
+removes that column and shifts later columns left; the first workspace column stays available.
+Remove or clear `PaneHost.Columns` to discard columns explicitly. Each collection's owning control handles its lifecycle;
 the host observes membership changes to keep selection valid. Native validation rejects panes
 in the host's column collection and non-pane controls in a column before insertion.
 
@@ -83,10 +83,9 @@ Inspection source links describe the exact value or answer: several inline inspe
 one REPL pane. Pane placement does not need a second provenance tree.
 
 - A REPL result hosts a small inline inspector. Evaluating input does not create a new column.
-- Middle-clicking a target opens an inspector pane immediately to the right of its source pane.
-  Start at the source's row and use the next vacant slot in that column. Opening X beside A
-  leaves B and its descendants in place. Opening also restores the source column's normal width
-  to make room for the new inspector.
+- Middle-clicking a target inserts a new inspector column immediately to the right of the REPL's
+  first column. Older columns shift right, so the newest inspection is always beside the REPL.
+  Opening restores the source and first column's normal width to make room for the new inspector.
 - Pane actions sit at the top right; the REPL pane disables closing. One column fills the
   available space; additional columns share it. Thirds and other allocation policies can follow.
   View size hints remain requests subject to the host's allocation.
@@ -94,8 +93,8 @@ one REPL pane. Pane placement does not need a second provenance tree.
   horizontally. Other columns keep their vertical position, including the REPL's column.
   Descendant bring-into-view requests stop at the column; only host navigation reveals the column
   in the workspace, so an editor updating elsewhere cannot pull the workspace back.
-- Closing B closes B alone and leaves its slot empty; it does not scroll or pull another pane
-  into that space. `Move` changes current placement without changing inspection history.
+- Closing B closes B alone. If its column becomes empty, later columns shift left to fill the gap.
+  `Move` changes current placement without changing inspection history.
   Movement keybindings can follow.
 - Keep the selected inspection/pane distinct from keyboard focus so commands can target it
   while the REPL input retains focus.

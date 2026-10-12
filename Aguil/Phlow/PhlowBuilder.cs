@@ -24,7 +24,7 @@ public static class PhlowBuilder
             var grammar = fields.TryGetValue(Value.NewAlAtom("grammar"), out var g) && g is Value.AlText source
                 ? source.Item
                 : null;
-            AlPhlowView view = AlValues.text("view", fields) switch
+            var view = AlValues.text("view", fields) switch
             {
                 "aguil_native" => CSharpForward.Resolve(AlValues.text("target", fields)),
                 "text" => new TextView(AlValues.text("text", fields), grammar),

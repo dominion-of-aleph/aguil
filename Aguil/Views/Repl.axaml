@@ -1,15 +1,15 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-        x:Class="Aguil.Views.Repl"
-        xmlns:vm="using:Aguil.ViewModels"
-        xmlns:editor="using:Aguil.Editor"
-        xmlns:views="using:Aguil.Views"
-        x:DataType="vm:ReplViewModel"
-        FontSize="16">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="Aguil.Views.Repl"
+             xmlns:vm="using:Aguil.ViewModels"
+             xmlns:editor="using:Aguil.Editor"
+             xmlns:views="using:Aguil.Views"
+             x:DataType="vm:ReplViewModel"
+             FontSize="16">
     <UserControl.Styles>
         <Style Selector="ae|TextEditor">
             <Setter Property="FontFamily" Value="Fira Code,avares://Aguil/Assets/Fonts#Fira Code" />
@@ -89,8 +89,8 @@
                                                         <StackPanel>
                                                             <views:InlinePreview>
                                                                 <views:Inspector Classes="result-tabs"
-                                                                                 Inspection="{Binding Inspection}"
-                                                                                 Views="{Binding Views}" />
+                                                                        Inspection="{Binding Inspection}"
+                                                                        Views="{Binding Views}" />
                                                             </views:InlinePreview>
                                                             <StackPanel Orientation="Horizontal" Spacing="4"
                                                                         Margin="0,4,0,0">

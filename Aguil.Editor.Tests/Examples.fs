@@ -180,14 +180,14 @@ let lineKeys () =
 type CommandLog() =
     member val Runs: string list = [] with get, set
 
-    member private this.Logging name = {
-        new ICommand with
+    member private this.Logging name =
+        { new ICommand with
             member _.CanExecute _ = true
             member _.Execute _ = this.Runs <- this.Runs @ [ name ]
 
             [<CLIEvent>]
             member _.CanExecuteChanged = Event<EventHandler, EventArgs>().Publish
-    }
+        }
 
     member this.PreviousInputCommand = this.Logging "PreviousInput"
     member this.CancelCommand = this.Logging "Cancel"
