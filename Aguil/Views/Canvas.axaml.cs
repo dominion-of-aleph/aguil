@@ -28,6 +28,13 @@ public partial class Canvas : Avalonia.Controls.Window
         var wm = await WindowManager.Create(al, Scroll.Viewport);
         DataContext = wm;
         await wm.Spawn(new CSharpForward(new Repl()) { Title = "REPL" });
+
+        Scroll.PropertyChanged += async (_, change) =>
+        {
+            if (change.Property == ScrollViewer.ViewportProperty)
+                await wm.ViewPortChanged(Scroll.Viewport);
+        };
+        await wm.ViewPortChanged(Scroll.Viewport);
     }
 }
 
@@ -74,9 +81,15 @@ public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm) : Observa
         await Show(result);
     }
 
-    public void ViewPortChanged(Size size)
+    public async Task ViewPortChanged(Size size)
     {
-        // Call WM when the AL resize operation is available.
+        var result = await al.QueryAl(FormattableString.Invariant(
+            $$"""
+              new(:point, %{x: {{size.Width}}, y: {{size.Height}}}, visible)
+              viewport_changed({{AlValues.AlValue.Flat(wm)}}, visible, changed, removed)
+              get_slots({{AlValues.AlValue.Flat(wm)}}, %{total_extent: total_extent})
+              """), null);
+        await Show(result);
     }
 
     public void Delete(Window window)

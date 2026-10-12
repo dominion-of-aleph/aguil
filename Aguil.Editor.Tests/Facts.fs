@@ -46,6 +46,19 @@ type Facts(output: ITestOutputHelper) =
                 Assert.Equal<Map<AlValue, AlValue> list>(views["value"], found)
 
     [<Fact>]
+    member _.WindowResizePreservesIdentity() =
+        task {
+            let! manager, first, native, initial = windowResizes ()
+            let current = Seq.exactlyOne manager.Windows
+            see (initial, current.Rect, manager.Extent) |> ignore
+            Assert.Equal(Avalonia.Rect(0.0, 0.0, 1200.0, 900.0), initial)
+            Assert.Equal(Avalonia.Rect(0.0, 0.0, 640.0, 480.0), current.Rect)
+            Assert.Equal(current.Rect.Size, manager.Extent)
+            Assert.Same(first, current)
+            Assert.Same(native, current.Content)
+        }
+
+    [<Fact>]
     member _.OpeningScrollsOnlyItsColumn() =
         onUi (fun () ->
             let window = paneWindow ()

@@ -130,6 +130,21 @@ let windowSpawns () =
             return manager, first, native
         })
 
+let windowResizes () =
+    onUiAsync (fun () ->
+        task {
+            let al = MCP.AlMcpClient()
+            let! manager = WindowManager.Create(al, Size(800.0, 600.0))
+            do! manager.ViewPortChanged(Size(1200.0, 900.0))
+            let native = TextBlock(Text = "Native content")
+            do! manager.Spawn(CSharpForward(native, Title = "Native"))
+            let first = Seq.exactlyOne manager.Windows
+            let initial = first.Rect
+            do! manager.ViewPortChanged(Size(640.0, 480.0))
+            do! manager.ViewPortChanged(Size(640.0, 480.0))
+            return manager, first, native, initial
+        })
+
 /// The AvaloniaEdit commands a keymap can name.
 let editorCommandNames () = onUi (fun () -> Keymaps.editorCommands.Keys |> Seq.sort |> List.ofSeq)
 
@@ -180,14 +195,14 @@ let lineKeys () =
 type CommandLog() =
     member val Runs: string list = [] with get, set
 
-    member private this.Logging name =
-        { new ICommand with
+    member private this.Logging name = {
+        new ICommand with
             member _.CanExecute _ = true
             member _.Execute _ = this.Runs <- this.Runs @ [ name ]
 
             [<CLIEvent>]
             member _.CanExecuteChanged = Event<EventHandler, EventArgs>().Publish
-        }
+    }
 
     member this.PreviousInputCommand = this.Logging "PreviousInput"
     member this.CancelCommand = this.Logging "Cancel"
