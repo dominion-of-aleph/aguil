@@ -3,6 +3,7 @@ module Aguil.Editor.Examples
 
 open System
 open System.Threading
+open System.Threading.Tasks
 open System.Windows.Input
 open Aguil.Core
 open Aguil.Core.MCP.Evaluation
@@ -103,6 +104,46 @@ let private session = lazy (HeadlessUnitTestSession.StartNew typeof<HeadlessApp>
 
 /// Runs f on the headless app's UI thread, starting the app on first use.
 let onUi (f: unit -> 'a) = session.Value.Dispatch(Func<'a> f, CancellationToken.None).Result
+
+/// Runs an asynchronous example without blocking its UI continuations.
+let onUiAsync (f: unit -> Task<'a>) =
+    session.Value.Dispatch<'a>(Func<Task<'a>> f, CancellationToken.None)
+
+/// Open native content, then replace it with an AL-authored Phlow view.
+let windowSpawns () =
+    onUiAsync (fun () ->
+        task {
+            let al = MCP.AlMcpClient()
+            let! manager = WindowManager.Create(al, Size(800.0, 600.0))
+            let native = TextBlock(Text = "Native content")
+            do! manager.Spawn(CSharpForward(native, Title = "Native"))
+            let first = Seq.exactlyOne manager.Windows
+
+            let! content =
+                al.QueryAl(
+                    "new(:phlow_text, %{text: \"From AL\", title: \"AL content\"}, content)",
+                    null
+                )
+
+            let phlow = (content.Bindings.Values |> List.find (fun b -> b.Symbol = "content")).Value
+            do! manager.Spawn(phlow, first)
+            return manager, first, native
+        })
+
+let windowResizes () =
+    onUiAsync (fun () ->
+        task {
+            let al = MCP.AlMcpClient()
+            let! manager = WindowManager.Create(al, Size(800.0, 600.0))
+            do! manager.ViewPortChanged(Size(1200.0, 900.0))
+            let native = TextBlock(Text = "Native content")
+            do! manager.Spawn(CSharpForward(native, Title = "Native"))
+            let first = Seq.exactlyOne manager.Windows
+            let initial = first.Rect
+            do! manager.ViewPortChanged(Size(640.0, 480.0))
+            do! manager.ViewPortChanged(Size(640.0, 480.0))
+            return manager, first, native, initial
+        })
 
 /// The AvaloniaEdit commands a keymap can name.
 let editorCommandNames () = onUi (fun () -> Keymaps.editorCommands.Keys |> Seq.sort |> List.ofSeq)
@@ -375,8 +416,9 @@ let clickAction window (control: Control) tooltip =
 
 /// A REPL with a supplied answer; no evaluation is needed to explore its inline inspector.
 let replAnswer bindings =
-    let window = Repl(Width = 1000, Height = 600)
-    let model = window.DataContext :?> ReplViewModel
+    let repl = Repl()
+    let window = Avalonia.Controls.Window(Content = repl, Width = 1100, Height = 780)
+    let model = repl.DataContext :?> ReplViewModel
 
     model.History.Add(ReplSuccess("example", answer bindings, MCP.AlMcpClient()))
     window

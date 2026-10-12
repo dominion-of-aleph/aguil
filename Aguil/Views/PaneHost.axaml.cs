@@ -125,7 +125,9 @@ public partial class PaneHost : Decorator
             Reveal(added);
         }
         else if (Selected is { } selected && !Panes.Contains(selected))
+        {
             Select(Panes.LastOrDefault());
+        }
     }
 
     private PaneColumn Column(int index)

@@ -46,6 +46,19 @@ type Facts(output: ITestOutputHelper) =
                 Assert.Equal<Map<AlValue, AlValue> list>(views["value"], found)
 
     [<Fact>]
+    member _.WindowResizePreservesIdentity() =
+        task {
+            let! manager, first, native, initial = windowResizes ()
+            let current = Seq.exactlyOne manager.Windows
+            see (initial, current.Rect, manager.Extent) |> ignore
+            Assert.Equal(Avalonia.Rect(0.0, 0.0, 1200.0, 900.0), initial)
+            Assert.Equal(Avalonia.Rect(0.0, 0.0, 640.0, 480.0), current.Rect)
+            Assert.Equal(current.Rect.Size, manager.Extent)
+            Assert.Same(first, current)
+            Assert.Same(native, current.Content)
+        }
+
+    [<Fact>]
     member _.OpeningScrollsOnlyItsColumn() =
         onUi (fun () ->
             let window = paneWindow ()
@@ -174,15 +187,16 @@ type Facts(output: ITestOutputHelper) =
 
             try
                 window.Show()
-                let model = window.DataContext :?> ReplViewModel
+                let repl = window.Content :?> Repl
+                let model = repl.DataContext :?> ReplViewModel
                 let source = model.History[0] :?> ReplSuccess
                 let first = source.Solution
-                let input = window.FindControl<AvaloniaEdit.TextEditor>("Input")
+                let input = repl.FindControl<AvaloniaEdit.TextEditor>("Input")
                 input.TextArea.Focus() |> ignore
                 inspectTarget window value
                 let opened = Assert.Single(model.Inspections)
                 Assert.Equal(box value, see opened.Target)
-                let host = window.FindControl<PaneHost>("Flow")
+                let host = repl.FindControl<PaneHost>("Flow")
                 let child = host.Selected
                 Assert.True(input.TextArea.IsFocused)
                 host.Move(child, 1, 2)

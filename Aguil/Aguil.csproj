@@ -33,8 +33,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Update="Views\PaneColumn.axaml.cs">
-        <DependentUpon>PaneColumn.axaml</DependentUpon>
-      </Compile>
+        <Compile Update="Views\PaneColumn.axaml.cs">
+            <DependentUpon>PaneColumn.axaml</DependentUpon>
+        </Compile>
     </ItemGroup>
 </Project>

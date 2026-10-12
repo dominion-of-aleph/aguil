@@ -39,7 +39,10 @@ public partial class PaneColumn : Decorator
 
     [Content] public Controls Panes => PaneGrid.Children;
 
-    private void ContainScroll(object? sender, RequestBringIntoViewEventArgs e) => e.Handled = true;
+    private void ContainScroll(object? sender, RequestBringIntoViewEventArgs e)
+    {
+        e.Handled = true;
+    }
 
     private void Changed(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -65,10 +68,15 @@ public partial class PaneColumn : Decorator
         }
     }
 
-    private void CloseRequested(object? sender, EventArgs e) => Panes.Remove((Pane)sender!);
+    private void CloseRequested(object? sender, EventArgs e)
+    {
+        Panes.Remove((Pane)sender!);
+    }
 
-    internal void Move(Pane pane, int row) =>
+    internal void Move(Pane pane, int row)
+    {
         Place(pane, Layout.vacant(Panes.Where(p => p != pane).Select(Grid.GetRow), row));
+    }
 
     private void Place(Pane pane, int row)
     {

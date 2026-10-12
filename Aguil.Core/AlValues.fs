@@ -108,3 +108,14 @@ let text key fields =
     match Map.tryFind (AlAtom key) fields with
     | Some(AlText value) -> value
     | _ -> invalidArg key $"Field '{key}' must be a string."
+
+let field key value =
+    match value with
+    | AlMap fields -> fields[AlAtom key]
+    | _ -> invalidOp "Expected a map"
+
+let number value =
+    match value with
+    | AlInteger integer -> float integer
+    | AlFloat number -> number
+    | _ -> invalidOp "Expected a number"

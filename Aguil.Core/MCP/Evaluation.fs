@@ -69,3 +69,6 @@ type EvaluationContext = {
     override c.ToString() = c.Pretty 80
 
 type Solution = { Result: EvaluationContext; Views: Map<string, Map<AlValue, AlValue> list> }
+
+let binding name (result: EvaluationContext) =
+    (result.Bindings.Values |> List.find (fun binding -> binding.Symbol = name)).Value
