@@ -115,12 +115,14 @@ public sealed partial class ReplSuccess : ReplEntry
         catch (AlException)
         {
             Exhausted = true;
+            await _al.ReleaseContext(frontier.Context);
             return;
         }
 
-        var views = await _al.AlViewsFromQuery(result, null);
+        var views = await _al.AlViewsFromQuery(result, result.Branch);
         Solutions.Add(new Answer(new Evaluation.Solution(result, views)));
         Index = Solutions.Count - 1;
+        await _al.ReleaseContext(frontier.Context);
     }
 
     [RelayCommand]

@@ -1,6 +1,7 @@
 namespace Aguil.Core.MCP
 
 open System
+open System.Collections.Generic
 open System.Net.Http
 open System.Net.Http.Json
 open System.Text.Json
@@ -68,7 +69,13 @@ type AlMcpClient(url: string) =
     let failureMessage (result: JsonElement) =
         let text () = result.GetProperty("content").[0].GetProperty("text").GetString()
 
-        match result.GetProperty("structuredContent").TryGetProperty "reason" with
+        let reason =
+            match result.TryGetProperty "structuredContent" with
+            | true, content when content.ValueKind = JsonValueKind.Object ->
+                content.TryGetProperty "reason"
+            | _ -> false, Unchecked.defaultof<JsonElement>
+
+        match reason with
         | true, reason ->
             match mcp_decode_to_term reason with
             | Ok(AlMap fields) ->
@@ -125,6 +132,7 @@ type AlMcpClient(url: string) =
         Bindings = grab (content.GetProperty "bindings")
         Constraints = grab (content.GetProperty "constraints")
         Store = grab_store (content.GetProperty "store")
+        Branch = content.GetProperty("branch").GetString()
         Context = content.GetProperty("context").GetString()
         HasPotentialSolution = content.GetProperty("hasPotentialSolution").GetBoolean()
     }
@@ -139,22 +147,51 @@ type AlMcpClient(url: string) =
             return grab_context content
         }
 
+    member _.QueryAlTagged(source: string, branch: string, sourceTag: string) =
+        task {
+            let! content =
+                callTool
+                    "queryAL"
+                    (box {| source = source; branch = Option.ofObj branch; sourceTag = sourceTag |})
+
+            return grab_context content
+        }
+
+    member _.QueryAlWith
+        (source: string, branch: string, bindings: IReadOnlyDictionary<string, AlValue>)
+        =
+        task {
+            let encoded =
+                bindings |> Seq.map (fun entry -> entry.Key, AlValue.Tagged entry.Value) |> dict
+
+            let! content =
+                callTool
+                    "queryAL"
+                    (box {| source = source; branch = Option.ofObj branch; bindings = encoded |})
+
+            return grab_context content
+        }
+
     member self.QueryAlViews(source: string, branch: string) =
         task {
-            let! results = self.QueryAl(source, branch)
-            let! views = self.AlViewsFromQuery(results, branch)
+            let! results = self.QueryAlTagged(source, branch, History.tag)
+            let! views = self.AlViewsFromQuery(results, results.Branch)
             return results, views
         }
 
     member self.Inspect(value: AlValue, branch: string) =
         task {
-            let query = view_query value
-            let! result = self.QueryAl(query.Source, branch)
-            return Views.fromQuery query.Output result
+            let query = view_query
+            let! result = self.QueryAlWith(query.Source, branch, Map.ofList [ "Target", value ])
+            let views = Views.fromQuery query.Output result
+            do! self.ReleaseContext(result.Context)
+            return views
         }
 
     member self.AlViewsFromQuery(results: EvaluationContext, branch: string) =
         task {
+            let branch = if isNull branch then results.Branch else branch
+
             let! views =
                 results.Bindings.Values
                 |> Seq.map (fun b ->
@@ -173,11 +210,20 @@ type AlMcpClient(url: string) =
             return grab_context content
         }
 
+    member _.ReleaseContext(context: string) =
+        task {
+            if not (String.IsNullOrEmpty context) then
+                let! _ = callTool "releaseContext" (box {| context = context |})
+                ()
+        }
+
     /// Every input evaluated before, oldest first: AL's own runs and this query are left out.
     member this.PreviousInputs() =
         task {
             let! result = this.QueryAl(History.query, null)
-            return History.fromQuery result
+            let inputs = History.fromQuery result
+            do! this.ReleaseContext(result.Context)
+            return inputs
         }
 
     member _.DebugGrab(source: string, branch: string) =

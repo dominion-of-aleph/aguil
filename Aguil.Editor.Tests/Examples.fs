@@ -121,11 +121,11 @@ let windowSpawns () =
 
             let! content =
                 al.QueryAl(
-                    "new(:phlow_text, %{text: \"From AL\", title: \"AL content\"}, content)",
+                    "new phlow_text #{text => \"From AL\", title => \"AL content\"} Content.",
                     null
                 )
 
-            let phlow = (content.Bindings.Values |> List.find (fun b -> b.Symbol = "content")).Value
+            let phlow = (content.Bindings.Values |> List.find (fun b -> b.Symbol = "Content")).Value
             do! manager.Spawn(phlow, first)
             return manager, first, native
         })
@@ -277,6 +277,7 @@ let evaluation bindings =
         }
         Constraints = empty
         Store = empty
+        Branch = "main"
         Context = "example"
         HasPotentialSolution = false
     }
@@ -286,12 +287,19 @@ let viewsFor bindings = MCP.AlMcpClient().AlViewsFromQuery(evaluation bindings, 
 
 /// Enumerate a map method through AL before inspecting its returned values.
 let mapMethod () =
-    MCP.AlMcpClient().QueryAl("x = %{}\nclass(x, class)\nmethod(class, n, idd)", null).Result
+    MCP.AlMcpClient().QueryAl("= X #{}. class X Class. method Class Name Id.", null).Result
 
 /// Parse a printed value through the same AL endpoint used by inspection.
 let roundTrip value =
-    let result = MCP.AlMcpClient().QueryAl("value = " + string value, null).Result
-    (result.Bindings.Values |> List.find (fun binding -> binding.Symbol = "value")).Value
+    let result =
+        MCP.AlMcpClient().QueryAlWith("= Value Input.", null, Map.ofList [ "Input", value ]).Result
+
+    (result.Bindings.Values |> List.find (fun binding -> binding.Symbol = "Value")).Value
+
+let printedRoundTrip value =
+    let source = "= Value " + AlValue.Flat value + "."
+    let result = MCP.AlMcpClient().QueryAl(source, null).Result
+    (result.Bindings.Values |> List.find (fun binding -> binding.Symbol = "Value")).Value
 
 /// Atom names that require quoting, alone and as map keys.
 let quotedValues () =
@@ -318,25 +326,25 @@ let quotedValues () =
 let partialMap name = AlMap(Map.ofList [ AlAtom "slot", AlList [ AlVar name; AlVar name ] ])
 
 /// A retained source row in the history query's wire format.
-let historyRow tx kind source =
-    AlList [
-        AlInteger tx
-        AlText source
-        AlMap(Map.ofList [ AlAtom "kind", AlAtom kind ])
-    ]
+let historyRow tx kind tag source =
+    let origin =
+        [ AlAtom "kind", AlAtom kind ]
+        @ [ for value in Option.toList tag -> AlAtom "tag", AlText value ]
+
+    AlList [ AlInteger tx; AlText source; AlMap(Map.ofList origin) ]
 
 /// Authored inputs interleaved with an internal run and our own history query.
 let historyRows () = [
-    historyRow 1I "eval_source" "x = 1"
-    historyRow 2I "transaction_program" "x = 2"
-    historyRow 3I "eval_source" MCP.History.query
-    historyRow 4I "eval_source" "vm_transaction_source(tx, text, origin)"
-    historyRow 5I "eval_source" "y = 2"
-    historyRow 6I "eval_source" "x = 1"
+    historyRow 1I "al_text" (Some MCP.History.tag) "= X 1."
+    historyRow 2I "transaction_program" None "= X 2."
+    historyRow 3I "al_text" None MCP.History.query
+    historyRow 4I "al_text" None "vm_transaction_source Tx Text Origin."
+    historyRow 5I "al_text" (Some MCP.History.tag) "= Y 2."
+    historyRow 6I "al_text" (Some MCP.History.tag) "= X 1."
 ]
 
 /// Filter a history result without contacting AL or depending on its stored inputs.
-let historyInputs () = evaluation [ "inputs", AlList(historyRows ()) ] |> MCP.History.fromQuery
+let historyInputs () = evaluation [ "Inputs", AlList(historyRows ()) ] |> MCP.History.fromQuery
 
 /// An answer owns its inspection identity independently of its position in a result list.
 let answer bindings =

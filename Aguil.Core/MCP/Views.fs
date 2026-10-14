@@ -22,10 +22,7 @@ let raw result =
         AlAtom "view", AlText "columned_list"
         AlAtom "title", AlText "Raw"
         AlAtom "priority", AlInteger 100I
-        AlAtom "columns",
-        AlList [
-            AlMap(Map.ofList [ AlAtom "element", AlText "editor"; AlAtom "grammar", AlText "elixir" ])
-        ]
+        AlAtom "columns", AlList [ AlMap(Map.ofList [ AlAtom "element", AlText "editor" ]) ]
         AlAtom "items",
         AlList(rows " = " result.Bindings @ rows " : " result.Constraints @ rows " => " result.Store)
     ]

@@ -84,7 +84,7 @@ public partial class Repl : UserControl
                 Flow.Open(pane, parent);
                 try
                 {
-                    pane.Content = new Inspector { Views = await al.Inspect(target, null) };
+                    pane.Content = new Inspector { Views = await al.Inspect(target, inspection.Branch) };
                 }
                 catch (Exception error)
                 {

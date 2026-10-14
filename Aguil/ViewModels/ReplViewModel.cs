@@ -41,7 +41,8 @@ public partial class ReplViewModel : ObservableObject
 
     public Inspection OpenInspection(object target, Inspection? source)
     {
-        var inspection = new Inspection(target, source is null ? null : FSharpOption<Inspection>.Some(source));
+        var inspection = new Inspection(target, source is null ? null : FSharpOption<Inspection>.Some(source),
+            source?.Branch ?? Target?.Result?.Branch!);
         Inspections.Add(inspection);
         return inspection;
     }

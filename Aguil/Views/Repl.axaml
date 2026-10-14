@@ -16,7 +16,6 @@
             <Setter Property="ShowLineNumbers" Value="False" />
             <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
             <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
-            <Setter Property="editor:Code.Grammar" Value="elixir" />
             <Setter Property="editor:Code.Keymap" Value="{x:Static editor:Keymaps.defaults}" />
         </Style>
         <Style Selector="Border.bar">

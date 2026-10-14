@@ -32,7 +32,7 @@ public static class PhlowBuilder
                     ((Value.AlList)fields[Value.NewAlAtom("items")]).Item,
                     AlValues.maps(fields[Value.NewAlAtom("columns")]).Select(Column)),
                 "inspector" => new EmbeddedInspector(AlValues.maps(fields[Value.NewAlAtom("views")])),
-                "aguil_raw" => new TextView(fields[Value.NewAlAtom("target")].ToString(), "elixir"),
+                "aguil_raw" => new TextView(fields[Value.NewAlAtom("target")].ToString()),
                 var kind => throw new NotSupportedException($"Unknown view: {kind}")
             };
             view.Title = title;

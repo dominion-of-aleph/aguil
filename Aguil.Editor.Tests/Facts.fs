@@ -28,6 +28,18 @@ type Facts(output: ITestOutputHelper) =
             Assert.Equal(value, roundTrip value |> see)
 
     [<Fact>]
+    member _.PrintedValuesUseAlSyntax() =
+        for value in
+            [
+                AlAtom "point"
+                AlAtom "with space"
+                AlText "hello"
+                AlList [ AlInteger 1I; AlInteger 2I ]
+                AlMap(Map.ofList [ AlAtom "x", AlInteger 3I ])
+            ] do
+            Assert.Equal(value, printedRoundTrip value |> see)
+
+    [<Fact>]
     member _.MapMethodViews() =
         let result = mapMethod () |> see
         let bindings = result.Bindings.Values |> List.map (fun b -> b.Symbol, b.Value)
@@ -245,10 +257,7 @@ type Facts(output: ITestOutputHelper) =
 
     [<Fact>]
     member _.PreviousInputs() =
-        Assert.Equal<string list>(
-            [ "x = 1"; "vm_transaction_source(tx, text, origin)"; "y = 2"; "x = 1" ],
-            see (historyInputs ())
-        )
+        Assert.Equal<string list>([ "= X 1."; "= Y 2."; "= X 1." ], see (historyInputs ()))
 
     [<Fact>]
     member _.AssignmentCaptures() =
