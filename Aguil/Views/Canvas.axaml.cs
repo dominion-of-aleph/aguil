@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Aguil.Core;
 using Aguil.Core.MCP;
@@ -29,12 +30,21 @@ public partial class Canvas : Avalonia.Controls.Window
         DataContext = wm;
         await wm.Spawn(new CSharpForward(new Repl()) { Title = "REPL" });
 
-        Scroll.PropertyChanged += async (_, change) =>
+        var sizes = Channel.CreateBounded<Size>(new BoundedChannelOptions(1)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest
+        });
+
+        Scroll.PropertyChanged += (_, change) =>
         {
             if (change.Property == ScrollViewer.ViewportProperty)
-                await wm.ViewPortChanged(Scroll.Viewport);
+                sizes.Writer.TryWrite(Scroll.Viewport);
         };
-        await wm.ViewPortChanged(Scroll.Viewport);
+        Closed += (_, _) => sizes.Writer.TryComplete();
+        sizes.Writer.TryWrite(Scroll.Viewport);
+
+        await foreach (var size in sizes.Reader.ReadAllAsync())
+            await wm.ViewPortChanged(size);
     }
 }
 
