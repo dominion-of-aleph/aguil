@@ -77,7 +77,8 @@
                                             <DockPanel>
                                                 <TextBlock DockPanel.Dock="Left" Text="AL-USER> "
                                                            Foreground="DarkSlateBlue" />
-                                                <ae:TextEditor IsReadOnly="True" editor:Code.Text="{Binding Source}" />
+                                                <ae:TextEditor IsReadOnly="True" editor:Code.Text="{Binding Source}"
+                                                               editor:Code.Grammar="al" />
                                             </DockPanel>
 
                                             <ContentControl Content="{Binding}">
@@ -131,7 +132,7 @@
 
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Left" Text="AL-USER> " Foreground="DarkSlateBlue" />
-                            <ae:TextEditor Name="Input" />
+                            <ae:TextEditor Name="Input" editor:Code.Grammar="al" />
                         </DockPanel>
                     </StackPanel>
                 </ScrollViewer>

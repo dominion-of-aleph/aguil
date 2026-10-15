@@ -83,6 +83,19 @@ let strayQuote () =
 /// Columns are UTF-16 chars: é is 1, 🙂 is 2.
 let nonAscii () = style "x = \"é🙂\" <> y"
 
+/// Styles AL source without changing the Elixir examples.
+let alStyle text = text, AlStyler.style text
+
+let alAssignment () = alStyle "= X 1."
+let alMapAndComment () = alStyle "= X #{x => 1}. # note"
+let alStringAcrossLines () = alStyle "= X \"a\nb\"."
+let alQuotedAtom () = alStyle "= X 'with \\' quote'."
+
+let alMethodClause () =
+    alStyle "list >> fold_left\n| [H . T] Func Acc Result |\nrun Func [Acc, H, Next]."
+
+let alNonAscii () = alStyle "= X \"é🙂\"."
+
 /// A headless Avalonia app with AvaloniaEdit's theme, so editors get their parts and can take focus.
 type HeadlessApp() =
     inherit Application()
