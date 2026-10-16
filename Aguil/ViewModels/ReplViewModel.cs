@@ -83,6 +83,9 @@ public partial class ReplViewModel : ObservableObject
         var source = Source;
         Inputs.Add(source);
         Source = "";
+        var pending = new ReplPending(source);
+        History.Add(pending);
+        Selected = pending;
         ReplEntry entry;
         // Replace with a real sum type logic
         try
@@ -90,13 +93,14 @@ public partial class ReplViewModel : ObservableObject
             var (result, views) = await _al.QueryAlViews(source, null);
             entry = new ReplSuccess(source, new Answer(new Evaluation.Solution(result, views)), _al);
         }
-        catch (AlException e)
+        catch (Exception e)
         {
             entry = new ReplFailure(source, e.Message);
         }
 
-        History.Add(entry);
-        Selected = entry;
+        var wasSelected = Selected == pending;
+        History[History.IndexOf(pending)] = entry;
+        if (wasSelected) Selected = entry;
     }
 
     [RelayCommand]

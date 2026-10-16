@@ -17,6 +17,8 @@ public abstract class ReplEntry(string source)
     public string Source { get; } = source;
 }
 
+public sealed class ReplPending(string source) : ReplEntry(source);
+
 public sealed class ReplFailure(string source, string error) : ReplEntry(source)
 {
     public string Error { get; } = error;
