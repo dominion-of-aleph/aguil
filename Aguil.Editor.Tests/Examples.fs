@@ -80,8 +80,8 @@ let notADocHeredoc () = style "@dog \"\"\"\nhello\n\"\"\""
 let strayQuote () =
     style "\"defclass :switch,\n  ivars: [%{domain: [\"on\", \"off\"], default: \"off\"}] do\nend"
 
-/// Columns are UTF-16 chars: é is 1, 🙂 is 2.
-let nonAscii () = style "x = \"é🙂\" <> y"
+/// Columns are UTF-16 chars: U+00E9 is 1, U+20000 is 2.
+let nonAscii () = style "x = \"\u00E9\U00020000\" <> y"
 
 /// Styles AL source without changing the Elixir examples.
 let alStyle text = text, AlStyler.style text
@@ -94,7 +94,7 @@ let alQuotedAtom () = alStyle "= X 'with \\' quote'."
 let alMethodClause () =
     alStyle "list >> fold_left\n| [H . T] Func Acc Result |\nrun Func [Acc, H, Next]."
 
-let alNonAscii () = alStyle "= X \"é🙂\"."
+let alNonAscii () = alStyle "= X \"\u00E9\U00020000\"."
 
 /// A headless Avalonia app with AvaloniaEdit's theme, so editors get their parts and can take focus.
 type HeadlessApp() =
