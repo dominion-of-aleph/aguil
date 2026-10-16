@@ -30,7 +30,10 @@ public static class PhlowBuilder
                 "text" => new TextView(AlValues.text("text", fields), grammar),
                 "columned_list" => new ColumnedList(
                     ((Value.AlList)fields[Value.NewAlAtom("items")]).Item,
-                    AlValues.maps(fields[Value.NewAlAtom("columns")]).Select(Column)),
+                    AlValues.maps(fields[Value.NewAlAtom("columns")]).Select(Column),
+                    fields.TryGetValue(Value.NewAlAtom("row_spacing"), out var spacing) && spacing is Value.AlInteger rowSpacing
+                        ? (double)rowSpacing.Item
+                        : 0),
                 "inspector" => new EmbeddedInspector(AlValues.maps(fields[Value.NewAlAtom("views")])),
                 "aguil_raw" => new TextView(fields[Value.NewAlAtom("target")].ToString()),
                 var kind => throw new NotSupportedException($"Unknown view: {kind}")
