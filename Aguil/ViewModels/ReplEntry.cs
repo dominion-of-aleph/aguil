@@ -17,6 +17,8 @@ public abstract class ReplEntry(string source)
     public string Source { get; } = source;
 }
 
+public sealed class ReplPending(string source) : ReplEntry(source);
+
 public sealed class ReplFailure(string source, string error) : ReplEntry(source)
 {
     public string Error { get; } = error;
@@ -115,12 +117,14 @@ public sealed partial class ReplSuccess : ReplEntry
         catch (AlException)
         {
             Exhausted = true;
+            await _al.ReleaseContext(frontier.Context);
             return;
         }
 
-        var views = await _al.AlViewsFromQuery(result, null);
+        var views = await _al.AlViewsFromQuery(result, result.Branch);
         Solutions.Add(new Answer(new Evaluation.Solution(result, views)));
         Index = Solutions.Count - 1;
+        await _al.ReleaseContext(frontier.Context);
     }
 
     [RelayCommand]

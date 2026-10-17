@@ -16,7 +16,6 @@
             <Setter Property="ShowLineNumbers" Value="False" />
             <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
             <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
-            <Setter Property="editor:Code.Grammar" Value="elixir" />
             <Setter Property="editor:Code.Keymap" Value="{x:Static editor:Keymaps.defaults}" />
         </Style>
         <Style Selector="Border.bar">
@@ -78,13 +77,18 @@
                                             <DockPanel>
                                                 <TextBlock DockPanel.Dock="Left" Text="AL-USER> "
                                                            Foreground="DarkSlateBlue" />
-                                                <ae:TextEditor IsReadOnly="True" editor:Code.Text="{Binding Source}" />
+                                                <ae:TextEditor IsReadOnly="True" editor:Code.Text="{Binding Source}"
+                                                               editor:Code.Grammar="al" />
                                             </DockPanel>
 
                                             <ContentControl Content="{Binding}">
                                                 <!-- Include this in a tab view, failures of the protocol should be an object -->
                                                 <ContentControl.DataTemplates>
                                                     <!-- Change to a tab view -->
+                                                    <DataTemplate x:DataType="vm:ReplPending">
+                                                        <TextBlock Text="Running…" Foreground="DimGray"
+                                                                   Margin="0,4,0,0" />
+                                                    </DataTemplate>
                                                     <DataTemplate x:DataType="vm:ReplSuccess">
                                                         <StackPanel>
                                                             <views:InlinePreview>
@@ -132,7 +136,7 @@
 
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Left" Text="AL-USER> " Foreground="DarkSlateBlue" />
-                            <ae:TextEditor Name="Input" />
+                            <ae:TextEditor Name="Input" editor:Code.Grammar="al" />
                         </DockPanel>
                     </StackPanel>
                 </ScrollViewer>

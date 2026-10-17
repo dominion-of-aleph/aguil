@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Channels;
@@ -48,7 +49,7 @@ public partial class Canvas : Avalonia.Controls.Window
     }
 }
 
-public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm) : ObservableObject
+public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm, string branch) : ObservableObject
 {
     private Size _extent;
 
@@ -65,41 +66,54 @@ public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm) : Observa
         // Floating points on euro macchines are like 12,5
         var result = await al.QueryAl(FormattableString.Invariant(
             $$"""
-              new(:point, %{x: {{extent.Width}}, y: {{extent.Height}}}, visible_extent)
-              new(:point, %{x: 0, y: 0}, total_extent)
-              new(:single_layout, %{windows: []}, layout)
-              new(:wm, %{layout: layout, visible_extent: visible_extent, total_extent: total_extent}, wm)
+              new point #{x => {{extent.Width}}, y => {{extent.Height}}} VisibleExtent.
+              new point #{x => 0, y => 0} TotalExtent.
+              new single_layout #{windows => []} Layout.
+              new wm #{layout => Layout, visible_extent => VisibleExtent, total_extent => TotalExtent} Wm.
               """), null);
-        return new WindowManager(al, Evaluation.binding("wm", result));
+        var wm = Evaluation.binding("Wm", result);
+        await al.ReleaseContext(result.Context);
+        return new WindowManager(al, wm, result.Branch);
     }
 
     public async Task Spawn(AlPhlowView content, Window? on = null)
     {
-        await Spawn(await CSharpForward.ToAl(content, al), on);
+        await Spawn(await CSharpForward.ToAl(content, al, branch), on);
     }
 
     public async Task Spawn(AlValues.AlValue content, Window? on = null)
     {
         var source = on?.Id ?? AlValues.AlValue.NewAlAtom("nil");
-        var result = await al.QueryAl(
-            $$"""
-              new_window({{AlValues.AlValue.Flat(wm)}},
-                  %{on: {{AlValues.AlValue.Flat(source)}}, content: {{AlValues.AlValue.Flat(content)}}},
-                  changed, removed)
-              get_slots({{AlValues.AlValue.Flat(wm)}}, %{total_extent: total_extent})
-              """, null);
-        await Show(result);
+        var result = await al.QueryAlWith(
+            "new_window Wm #{on => On, content => Content} Changed Removed. get_slots Wm #{total_extent => TotalExtent}.",
+            branch,
+            new Dictionary<string, AlValues.AlValue> { ["Wm"] = wm, ["On"] = source, ["Content"] = content });
+        try
+        {
+            await Show(result);
+        }
+        finally
+        {
+            await al.ReleaseContext(result.Context);
+        }
     }
 
     public async Task ViewPortChanged(Size size)
     {
-        var result = await al.QueryAl(FormattableString.Invariant(
+        var result = await al.QueryAlWith(FormattableString.Invariant(
             $$"""
-              new(:point, %{x: {{size.Width}}, y: {{size.Height}}}, visible)
-              viewport_changed({{AlValues.AlValue.Flat(wm)}}, visible, changed, removed)
-              get_slots({{AlValues.AlValue.Flat(wm)}}, %{total_extent: total_extent})
-              """), null);
-        await Show(result);
+              new point #{x => {{size.Width}}, y => {{size.Height}}} Visible.
+              viewport_changed Wm Visible Changed Removed.
+              get_slots Wm #{total_extent => TotalExtent}.
+              """), branch, new Dictionary<string, AlValues.AlValue> { ["Wm"] = wm });
+        try
+        {
+            await Show(result);
+        }
+        finally
+        {
+            await al.ReleaseContext(result.Context);
+        }
     }
 
     public void Delete(Window window)
@@ -129,14 +143,14 @@ public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm) : Observa
 
     private async Task Show(Evaluation.EvaluationContext result)
     {
-        var removedIds = ((AlValues.AlValue.AlList)Evaluation.binding("removed", result)).Item
+        var removedIds = ((AlValues.AlValue.AlList)Evaluation.binding("Removed", result)).Item
             .Select(window => AlValues.field("id", window)).ToHashSet();
         var removed = Windows.Where(window => removedIds.Contains(window.Id)).ToArray();
 
         foreach (var window in removed)
             Windows.Remove(window);
 
-        var changed = ((AlValues.AlValue.AlList)Evaluation.binding("changed", result)).Item;
+        var changed = ((AlValues.AlValue.AlList)Evaluation.binding("Changed", result)).Item;
         foreach (var change in changed)
         {
             var id = AlValues.field("id", change);
@@ -155,14 +169,15 @@ public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm) : Observa
             }
         }
 
-        Extent = WindowSize(Evaluation.binding("total_extent", result));
+        Extent = WindowSize(Evaluation.binding("TotalExtent", result));
     }
 
     private async Task<AlPhlowView> ViewFor(AlValues.AlValue content)
     {
-        var result = await al.QueryAl(
-            $"to_map({AlValues.AlValue.Flat(content)}, description)", null);
-        var description = (AlValues.AlValue.AlMap)Evaluation.binding("description", result);
+        var result = await al.QueryAlWith("to_map Content Description.", branch,
+            new Dictionary<string, AlValues.AlValue> { ["Content"] = content });
+        var description = (AlValues.AlValue.AlMap)Evaluation.binding("Description", result);
+        await al.ReleaseContext(result.Context);
         return PhlowBuilder.Build(description.Item);
     }
 

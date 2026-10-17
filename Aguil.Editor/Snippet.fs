@@ -34,28 +34,144 @@ module Styler =
 
         lines |> Array.map List.ofSeq
 
+module AlStyler =
+    let private nameChar c =
+        c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c = '_'
+
+    let private digit c = c >= '0' && c <= '9'
+
+    /// AL's lexical forms, using the same quote, comment, name and number boundaries as AL.Syntax.
+    let style (text: string) =
+        let rows = text.Split '\n'
+        let mutable quote = None
+
+        [|
+            for row in rows do
+                let spans = ResizeArray<Span>()
+                let mutable i = 0
+
+                let add first last capture =
+                    if first < last then
+                        spans.Add { Start = first; End = last; Capture = capture }
+
+                let quoted first delimiter =
+                    let escapes = ResizeArray<Span>()
+                    let mutable doneQuote = false
+
+                    while i < row.Length && not doneQuote do
+                        if row[i] = '\\' && i + 1 < row.Length then
+                            escapes.Add { Start = i; End = i + 2; Capture = "string.escape" }
+                            i <- i + 2
+                        elif row[i] = delimiter then
+                            i <- i + 1
+                            doneQuote <- true
+                        else
+                            i <- i + 1
+
+                    add
+                        first
+                        i
+                        (if delimiter = '"' then
+                             "string"
+                         else
+                             "string.special.symbol")
+
+                    spans.AddRange escapes
+                    quote <- if doneQuote then None else Some delimiter
+
+                while i < row.Length do
+                    let first = i
+
+                    match quote with
+                    | Some delimiter -> quoted first delimiter
+                    | None ->
+                        match row[i] with
+                        | '#' when i + 1 < row.Length && row[i + 1] = '{' ->
+                            i <- i + 2
+                            add first i "operator"
+                        | '#' ->
+                            i <- row.Length
+                            add first i "comment"
+                        | '"'
+                        | '\'' as delimiter ->
+                            i <- i + 1
+                            quoted first delimiter
+                        | c when digit c ->
+                            i <- i + 1
+
+                            while i < row.Length && (digit row[i] || row[i] = '_') do
+                                i <- i + 1
+
+                            if i + 1 < row.Length && row[i] = '.' && digit row[i + 1] then
+                                i <- i + 2
+
+                                while i < row.Length
+                                      && (digit row[i] || row[i] = '_' || row[i] = 'e' || row[i] = 'E') do
+                                    i <- i + 1
+
+                            add first i "number"
+                        | c when nameChar c ->
+                            i <- i + 1
+
+                            while i < row.Length && nameChar row[i] do
+                                i <- i + 1
+
+                            add
+                                first
+                                i
+                                (if c >= 'A' && c <= 'Z' || c = '_' then
+                                     "variable"
+                                 else
+                                     "constant")
+                        | c when "=<>+-*/".Contains c ->
+                            i <- i + 1
+
+                            if
+                                i < row.Length
+                                && List.contains (string c + string row[i]) [
+                                    ">>"
+                                    "->"
+                                    "=>"
+                                    "=="
+                                    "<="
+                                    ">="
+                                    "**"
+                                ]
+                            then
+                                i <- i + 1
+
+                            add first i "operator"
+                        | _ -> i <- i + 1
+
+                yield List.ofSeq spans
+        |]
+
 /// An agent that styles a text: gets the whole text on each change and publishes Styled.
 /// Handles one text at a time and holds no thread while idle.
 type Snippet(grammar: string) =
     let styled = Event<Styling>()
 
-    let rec loop (inbox: MailboxProcessor<SnippetMsg>) parser highlights =
+    let rec loop (inbox: MailboxProcessor<SnippetMsg>) style =
         async {
             match! inbox.Receive() with
             // We redraw whole, so skip
-            | Style _ when inbox.CurrentQueueLength > 0 -> return! loop inbox parser highlights
+            | Style _ when inbox.CurrentQueueLength > 0 -> return! loop inbox style
             | Style(version, text) ->
-                styled.Trigger { Version = version; Lines = Styler.style parser highlights text }
-                return! loop inbox parser highlights
-            | Stop -> parser.Dispose()
+                styled.Trigger { Version = version; Lines = style text }
+                return! loop inbox style
+            | Stop -> ()
         }
 
     let agent =
         new MailboxProcessor<SnippetMsg>(fun inbox ->
-            // await rather than block, so agents started during the load hold no thread
             async {
-                let! loaded = Grammars.grammarFor grammar |> Async.AwaitTask
-                return! loop inbox (new Parser(loaded.Language)) loaded.Highlights
+                if grammar = "al" then
+                    return! loop inbox AlStyler.style
+                else
+                    // await rather than block, so agents started during the load hold no thread
+                    let! loaded = Grammars.grammarFor grammar |> Async.AwaitTask
+                    use parser = new Parser(loaded.Language)
+                    return! loop inbox (Styler.style parser loaded.Highlights)
             })
 
     do

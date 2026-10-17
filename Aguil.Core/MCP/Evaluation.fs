@@ -13,16 +13,11 @@ type Decoded = { Values: Binding<AlValue> list; Failures: Binding<DecodeError> l
 
 type ViewQuery = { Source: string; Output: string }
 
-let view_query (value: AlValue) =
-    let source = string value
-    let prefix = Seq.initInfinite (sprintf "aguil%d_") |> Seq.find (fun p -> not (source.Contains p))
-
-    {
-        Output = prefix + "maps"
-        Source =
-            $"new(:phlow_builder, %%{{}}, {prefix}builder); "
-            + $"findall({prefix}map, {prefix}maps) do; view({source}, {prefix}builder, {prefix}phlow); to_map({prefix}phlow, {prefix}map); end"
-    }
+let view_query = {
+    Output = "Maps"
+    Source =
+        "new phlow_builder #{} Builder. findall Map Maps {view Target Builder Phlow, to_map Phlow Map}."
+}
 
 
 [<RequireQualifiedAccess>]
@@ -51,6 +46,7 @@ type EvaluationContext = {
     Bindings: Decoded
     Constraints: Decoded
     Store: Decoded
+    Branch: string
     // Perhaps change later it's a reference really
     Context: string
     // If any choicepoints are left, indicating potential solutions

@@ -28,6 +28,18 @@ type Facts(output: ITestOutputHelper) =
             Assert.Equal(value, roundTrip value |> see)
 
     [<Fact>]
+    member _.PrintedValuesUseAlSyntax() =
+        for value in
+            [
+                AlAtom "point"
+                AlAtom "with space"
+                AlText "hello"
+                AlList [ AlInteger 1I; AlInteger 2I ]
+                AlMap(Map.ofList [ AlAtom "x", AlInteger 3I ])
+            ] do
+            Assert.Equal(value, printedRoundTrip value |> see)
+
+    [<Fact>]
     member _.MapMethodViews() =
         let result = mapMethod () |> see
         let bindings = result.Bindings.Values |> List.map (fun b -> b.Symbol, b.Value)
@@ -245,10 +257,7 @@ type Facts(output: ITestOutputHelper) =
 
     [<Fact>]
     member _.PreviousInputs() =
-        Assert.Equal<string list>(
-            [ "x = 1"; "vm_transaction_source(tx, text, origin)"; "y = 2"; "x = 1" ],
-            see (historyInputs ())
-        )
+        Assert.Equal<string list>([ "= X 1."; "= Y 2."; "= X 1." ], see (historyInputs ()))
 
     [<Fact>]
     member _.AssignmentCaptures() =
@@ -301,6 +310,47 @@ type Facts(output: ITestOutputHelper) =
         Assert.ThrowsAny<System.Exception>(fun () ->
             (Grammars.grammarFor "elixr").GetAwaiter().GetResult() |> ignore)
         |> ignore
+
+    [<Fact>]
+    member _.AlAssignment() =
+        Assert.Equal<Span list>(
+            [ span 0 1 "operator"; span 2 3 "variable"; span 4 5 "number" ],
+            (look (alAssignment ()))[0]
+        )
+
+    [<Fact>]
+    member _.AlMapAndComment() =
+        let line = (look (alMapAndComment ()))[0]
+        Assert.Contains<Span>(span 4 6 "operator", line)
+        Assert.Contains<Span>(span 15 21 "comment", line)
+        Assert.Single(line |> List.filter (fun part -> part.Capture = "comment")) |> ignore
+
+    [<Fact>]
+    member _.AlStringsAndAtoms() =
+        let lines = look (alStringAcrossLines ())
+        Assert.Contains<Span>(span 4 6 "string", lines[0])
+        Assert.Equal<Span list>([ span 0 2 "string" ], lines[1])
+        let atom = (look (alQuotedAtom ()))[0]
+        Assert.Contains<string>("string.special.symbol", atom |> List.map _.Capture)
+        Assert.Contains<string>("string.escape", atom |> List.map _.Capture)
+
+    [<Fact>]
+    member _.AlMethodClause() =
+        let lines = look (alMethodClause ())
+        Assert.Contains<Span>(span 5 7 "operator", lines[0])
+        Assert.Contains<Span>(span 3 4 "variable", lines[1])
+        Assert.Contains<Span>(span 0 3 "constant", lines[2])
+
+    [<Fact>]
+    member _.AlUsesUtf16Offsets() =
+        Assert.Contains<Span>(span 4 9 "string", (look (alNonAscii ()))[0])
+
+    [<Fact>]
+    member _.ReplInputUsesAlHighlighting() =
+        onUi (fun () ->
+            let repl = Repl()
+            let input = repl.FindControl<AvaloniaEdit.TextEditor>("Input")
+            Assert.Equal("al", Aguil.Editor.Code.GetGrammar(input)))
 
     [<Fact>]
     member _.EditorCommandNames() =

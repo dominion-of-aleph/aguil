@@ -80,8 +80,21 @@ let notADocHeredoc () = style "@dog \"\"\"\nhello\n\"\"\""
 let strayQuote () =
     style "\"defclass :switch,\n  ivars: [%{domain: [\"on\", \"off\"], default: \"off\"}] do\nend"
 
-/// Columns are UTF-16 chars: é is 1, 🙂 is 2.
-let nonAscii () = style "x = \"é🙂\" <> y"
+/// Columns are UTF-16 chars: U+00E9 is 1, U+20000 is 2.
+let nonAscii () = style "x = \"\u00E9\U00020000\" <> y"
+
+/// Styles AL source without changing the Elixir examples.
+let alStyle text = text, AlStyler.style text
+
+let alAssignment () = alStyle "= X 1."
+let alMapAndComment () = alStyle "= X #{x => 1}. # note"
+let alStringAcrossLines () = alStyle "= X \"a\nb\"."
+let alQuotedAtom () = alStyle "= X 'with \\' quote'."
+
+let alMethodClause () =
+    alStyle "list >> fold_left\n| [H . T] Func Acc Result |\nrun Func [Acc, H, Next]."
+
+let alNonAscii () = alStyle "= X \"\u00E9\U00020000\"."
 
 /// A headless Avalonia app with AvaloniaEdit's theme, so editors get their parts and can take focus.
 type HeadlessApp() =
@@ -121,11 +134,11 @@ let windowSpawns () =
 
             let! content =
                 al.QueryAl(
-                    "new(:phlow_text, %{text: \"From AL\", title: \"AL content\"}, content)",
+                    "new phlow_text #{text => \"From AL\", title => \"AL content\"} Content.",
                     null
                 )
 
-            let phlow = (content.Bindings.Values |> List.find (fun b -> b.Symbol = "content")).Value
+            let phlow = (content.Bindings.Values |> List.find (fun b -> b.Symbol = "Content")).Value
             do! manager.Spawn(phlow, first)
             return manager, first, native
         })
@@ -195,14 +208,14 @@ let lineKeys () =
 type CommandLog() =
     member val Runs: string list = [] with get, set
 
-    member private this.Logging name = {
-        new ICommand with
+    member private this.Logging name =
+        { new ICommand with
             member _.CanExecute _ = true
             member _.Execute _ = this.Runs <- this.Runs @ [ name ]
 
             [<CLIEvent>]
             member _.CanExecuteChanged = Event<EventHandler, EventArgs>().Publish
-    }
+        }
 
     member this.PreviousInputCommand = this.Logging "PreviousInput"
     member this.CancelCommand = this.Logging "Cancel"
@@ -277,6 +290,7 @@ let evaluation bindings =
         }
         Constraints = empty
         Store = empty
+        Branch = "main"
         Context = "example"
         HasPotentialSolution = false
     }
@@ -286,12 +300,19 @@ let viewsFor bindings = MCP.AlMcpClient().AlViewsFromQuery(evaluation bindings, 
 
 /// Enumerate a map method through AL before inspecting its returned values.
 let mapMethod () =
-    MCP.AlMcpClient().QueryAl("x = %{}\nclass(x, class)\nmethod(class, n, idd)", null).Result
+    MCP.AlMcpClient().QueryAl("= X #{}. class X Class. method Class Name Id.", null).Result
 
 /// Parse a printed value through the same AL endpoint used by inspection.
 let roundTrip value =
-    let result = MCP.AlMcpClient().QueryAl("value = " + string value, null).Result
-    (result.Bindings.Values |> List.find (fun binding -> binding.Symbol = "value")).Value
+    let result =
+        MCP.AlMcpClient().QueryAlWith("= Value Input.", null, Map.ofList [ "Input", value ]).Result
+
+    (result.Bindings.Values |> List.find (fun binding -> binding.Symbol = "Value")).Value
+
+let printedRoundTrip value =
+    let source = "= Value " + AlValue.Flat value + "."
+    let result = MCP.AlMcpClient().QueryAl(source, null).Result
+    (result.Bindings.Values |> List.find (fun binding -> binding.Symbol = "Value")).Value
 
 /// Atom names that require quoting, alone and as map keys.
 let quotedValues () =
@@ -318,25 +339,25 @@ let quotedValues () =
 let partialMap name = AlMap(Map.ofList [ AlAtom "slot", AlList [ AlVar name; AlVar name ] ])
 
 /// A retained source row in the history query's wire format.
-let historyRow tx kind source =
-    AlList [
-        AlInteger tx
-        AlText source
-        AlMap(Map.ofList [ AlAtom "kind", AlAtom kind ])
-    ]
+let historyRow tx kind tag source =
+    let origin =
+        [ AlAtom "kind", AlAtom kind ]
+        @ [ for value in Option.toList tag -> AlAtom "tag", AlText value ]
+
+    AlList [ AlInteger tx; AlText source; AlMap(Map.ofList origin) ]
 
 /// Authored inputs interleaved with an internal run and our own history query.
 let historyRows () = [
-    historyRow 1I "eval_source" "x = 1"
-    historyRow 2I "transaction_program" "x = 2"
-    historyRow 3I "eval_source" MCP.History.query
-    historyRow 4I "eval_source" "vm_transaction_source(tx, text, origin)"
-    historyRow 5I "eval_source" "y = 2"
-    historyRow 6I "eval_source" "x = 1"
+    historyRow 1I "al_text" (Some MCP.History.tag) "= X 1."
+    historyRow 2I "transaction_program" None "= X 2."
+    historyRow 3I "al_text" None MCP.History.query
+    historyRow 4I "al_text" None "vm_transaction_source Tx Text Origin."
+    historyRow 5I "al_text" (Some MCP.History.tag) "= Y 2."
+    historyRow 6I "al_text" (Some MCP.History.tag) "= X 1."
 ]
 
 /// Filter a history result without contacting AL or depending on its stored inputs.
-let historyInputs () = evaluation [ "inputs", AlList(historyRows ()) ] |> MCP.History.fromQuery
+let historyInputs () = evaluation [ "Inputs", AlList(historyRows ()) ] |> MCP.History.fromQuery
 
 /// An answer owns its inspection identity independently of its position in a result list.
 let answer bindings =

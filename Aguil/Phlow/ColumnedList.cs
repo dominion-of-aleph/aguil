@@ -13,9 +13,10 @@ using Value = Aguil.Core.AlValues.AlValue;
 
 namespace Aguil.Phlow;
 
-public class ColumnedList(IEnumerable items, IEnumerable<TableViewColumn> columns) : AlPhlowView(Layout(items, columns))
+public class ColumnedList(IEnumerable items, IEnumerable<TableViewColumn> columns, double rowSpacing)
+    : AlPhlowView(Layout(items, columns, rowSpacing))
 {
-    private static TableView Layout(IEnumerable items, IEnumerable<TableViewColumn> columns)
+    private static TableView Layout(IEnumerable items, IEnumerable<TableViewColumn> columns, double rowSpacing)
     {
         var table = new TableView { ItemsSource = items };
         table.Columns.AddRange(columns);
@@ -28,6 +29,7 @@ public class ColumnedList(IEnumerable items, IEnumerable<TableViewColumn> column
                     Converter = new FuncValueConverter<Value, Value?>(ElementBuilder.Target)
                 }),
                 new Setter(TemplatedControl.PaddingProperty, new Thickness(0)),
+                new Setter(Control.MarginProperty, new Thickness(0, 0, 0, rowSpacing)),
                 new Setter(Control.MinHeightProperty, 0d)
             }
         });

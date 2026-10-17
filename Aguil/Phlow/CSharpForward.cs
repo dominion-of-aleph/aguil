@@ -12,17 +12,22 @@ public class CSharpForward(Control content) : AlPhlowView(content)
     // Exported targets remain valid for this application session.
     private static readonly Dictionary<string, AlPhlowView> References = [];
 
-    public static async Task<AlValues.AlValue> ToAl(AlPhlowView view, AlMcpClient al)
+    public static async Task<AlValues.AlValue> ToAl(AlPhlowView view, AlMcpClient al, string branch)
     {
-        // round trip to properly encode the string
-        var title = AlValues.AlValue.Flat(AlValues.AlValue.NewAlText(view.Title));
         var target = Guid.NewGuid().ToString("N");
-        var result = await al.QueryAl(FormattableString.Invariant($$"""
-                                                                    new(:phlow_csharp_forward, %{view: "aguil_native", title: {{title}},
-                                                                        priority: {{view.Priority}}, target: "{{target}}"}, content)
-                                                                    """), null);
+        var result = await al.QueryAlWith(
+            "new phlow_csharp_forward #{view => \"aguil_native\", title => Title, priority => Priority, target => Target} Content.",
+            branch,
+            new Dictionary<string, AlValues.AlValue>
+            {
+                ["Title"] = AlValues.AlValue.NewAlText(view.Title),
+                ["Priority"] = AlValues.AlValue.NewAlInteger(view.Priority),
+                ["Target"] = AlValues.AlValue.NewAlText(target)
+            });
         References.Add(target, view);
-        return Evaluation.binding("content", result);
+        var content = Evaluation.binding("Content", result);
+        await al.ReleaseContext(result.Context);
+        return content;
     }
 
     public static AlPhlowView Resolve(string target)
