@@ -78,8 +78,14 @@ public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm, string br
             "new_window Wm #{on => On, content => Content} Changed Removed. get_slots Wm #{total_extent => TotalExtent}.",
             branch,
             new Dictionary<string, AlValues.AlValue> { ["Wm"] = wm, ["On"] = source, ["Content"] = content });
-        try { await Show(result); }
-        finally { await al.ReleaseContext(result.Context); }
+        try
+        {
+            await Show(result);
+        }
+        finally
+        {
+            await al.ReleaseContext(result.Context);
+        }
     }
 
     public async Task ViewPortChanged(Size size)
@@ -90,8 +96,14 @@ public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm, string br
               viewport_changed Wm Visible Changed Removed.
               get_slots Wm #{total_extent => TotalExtent}.
               """), branch, new Dictionary<string, AlValues.AlValue> { ["Wm"] = wm });
-        try { await Show(result); }
-        finally { await al.ReleaseContext(result.Context); }
+        try
+        {
+            await Show(result);
+        }
+        finally
+        {
+            await al.ReleaseContext(result.Context);
+        }
     }
 
     public void Delete(Window window)

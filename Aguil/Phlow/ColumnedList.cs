@@ -13,7 +13,8 @@ using Value = Aguil.Core.AlValues.AlValue;
 
 namespace Aguil.Phlow;
 
-public class ColumnedList(IEnumerable items, IEnumerable<TableViewColumn> columns, double rowSpacing) : AlPhlowView(Layout(items, columns, rowSpacing))
+public class ColumnedList(IEnumerable items, IEnumerable<TableViewColumn> columns, double rowSpacing)
+    : AlPhlowView(Layout(items, columns, rowSpacing))
 {
     private static TableView Layout(IEnumerable items, IEnumerable<TableViewColumn> columns, double rowSpacing)
     {
