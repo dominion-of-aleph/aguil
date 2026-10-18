@@ -122,11 +122,165 @@ let onUi (f: unit -> 'a) = session.Value.Dispatch(Func<'a> f, CancellationToken.
 let onUiAsync (f: unit -> Task<'a>) =
     session.Value.Dispatch<'a>(Func<Task<'a>> f, CancellationToken.None)
 
+let alClient () = MCP.AlMcpClient()
+
+/// A durable object with editable text and a constrained choice.
+let bindingObject (al: MCP.AlMcpClient) : Task<SlotAddress> =
+    task {
+        let! result =
+            al.QueryAl(
+                """
+                @aguil_xaml_example
+                #{super => object,
+                  ivars => [#{name => text, type => string},
+                            #{name => choice, domain => ["foo", "bar"]}]}.
+                new aguil_xaml_example #{text => "foo", choice => "foo"} Object.
+                """,
+                null
+            )
+
+        do! al.ReleaseContext(result.Context)
+
+        let id =
+            match binding "Object" result with
+            | AlAtom id -> id
+            | value -> failwithf "Expected a durable object, got %A" value
+
+        let address: SlotAddress = { ObjectId = id; Branch = result.Branch; Path = "text" }
+        return address
+    }
+
+type SlotExample = { Client: MCP.AlMcpClient; Slots: Slots; Address: SlotAddress }
+
+/// A connection, durable object and shared slot collection to build examples on.
+let slotExample () =
+    task {
+        let al = alClient ()
+        let! address = bindingObject al
+        return { Client = al; Slots = Slots(al); Address = address }
+    }
+
+/// Explicit collection for exploring weakly held objects without blocking the UI thread.
+let collectGarbage () =
+    task {
+        GC.Collect()
+        do! Task.Run(Action(GC.WaitForPendingFinalizers)).WaitAsync(TimeSpan.FromSeconds 5.)
+        GC.Collect()
+    }
+
+/// Returns a weak handle to the retired entry's key, leaving the collection reusable.
+let collectedSlot (example: SlotExample) =
+    task {
+        let address = example.Address
+        // Keep the temporary slot out of the caller's async state.
+        let! key =
+            Task.Run(fun () ->
+                let opened = example.Slots.Open(address.ObjectId, address.Path, address.Branch)
+                let slot = opened.GetAwaiter().GetResult()
+                slot.Pending.GetAwaiter().GetResult()
+                WeakReference<SlotAddress>(slot.Address))
+
+        do! collectGarbage ()
+        return key
+    }
+
+/// An ordinary textbox using the same compiled path as al:Bind.
+let boundTextBox (slot: Slot) =
+    let textbox = TextBox()
+    let source = Aguil.Bindings.SlotSource(Slot = slot)
+
+    textbox.Bind(
+        TextBox.TextProperty,
+        Avalonia.Data.CompiledBinding.Create<Aguil.Bindings.SlotSource, obj>(
+            (fun s -> s.Slot.Value),
+            source
+        )
+    )
+    |> ignore
+
+    textbox
+
+let waitFor condition =
+    task {
+        let deadline = DateTime.UtcNow.AddSeconds 10
+
+        while not (condition ()) do
+            if DateTime.UtcNow >= deadline then
+                failwith "Binding did not reach the expected value."
+
+            do! Task.Delay 10
+    }
+
+type TextBinding = {
+    Source: SlotExample
+    Window: Window
+    TextBox: TextBox
+} with
+
+    interface IDisposable with
+        member self.Dispose() = self.Window.Close()
+
+/// Opens either XAML spelling against an existing object; returns the live view.
+let textBinding (source: SlotExample) propertyElement =
+    task {
+        let address = source.Address
+
+        let content =
+            if propertyElement then
+                $"""<TextBox><TextBox.Text><al:BindExtension Path="{address.Path}" ObjectId="{address.ObjectId}"/></TextBox.Text><TextBox.PlaceholderText>hi</TextBox.PlaceholderText><TextBox.IsReadOnly>false</TextBox.IsReadOnly></TextBox>"""
+            else
+                $"""<TextBox PlaceholderText="hi" IsReadOnly="False" Text="{{al:Bind {address.Path}, ObjectId={address.ObjectId}}}"/>"""
+
+        let view =
+            PhlowBuilder.Build(
+                Map.ofList [
+                    AlAtom "view", AlText "xaml"
+                    AlAtom "title", AlText "Binding example"
+                    AlAtom "priority", AlInteger 10I
+                    AlAtom "content", AlText content
+                ]
+            )
+
+        let window = Window(Content = view.Content)
+        let textbox = (view.Content :?> ContentControl).Content :?> TextBox
+        Inspector.SetInspection(window, Inspection(AlAtom address.ObjectId, None, address.Branch))
+        window.Show()
+
+        try
+            let! stored = source.Client.ReadSlot(address.ObjectId, address.Path, address.Branch)
+            do! waitFor (fun () -> box textbox.Text = toNet stored.Value)
+            return { Source = source; Window = window; TextBox = textbox }
+        with error ->
+            window.Close()
+            return raise error
+    }
+
+/// Edits a live textbox and returns the value observed back in AL.
+let editText (example: TextBinding) text =
+    task {
+        example.TextBox.Text <- text
+        let address = example.Source.Address
+        let read () = example.Source.Client.ReadSlot(address.ObjectId, address.Path, address.Branch)
+        let! initial = read ()
+        let mutable stored = initial
+        let deadline = DateTime.UtcNow.AddSeconds 10
+
+        while stored.Value <> AlText text do
+            if DateTime.UtcNow >= deadline then
+                failwith "Textbox edit did not reach AL."
+
+            do! Task.Delay 10
+            let! next = read ()
+            stored <- next
+
+        return stored
+    }
+
 /// Open native content, then replace it with an AL-authored Phlow view.
 let windowSpawns () =
     onUiAsync (fun () ->
         task {
-            let al = MCP.AlMcpClient()
+            let al = alClient ()
             let! manager = WindowManager.Create(al, Size(800.0, 600.0))
             let native = TextBlock(Text = "Native content")
             do! manager.Spawn(CSharpForward(native, Title = "Native"))
@@ -146,7 +300,7 @@ let windowSpawns () =
 let windowResizes () =
     onUiAsync (fun () ->
         task {
-            let al = MCP.AlMcpClient()
+            let al = alClient ()
             let! manager = WindowManager.Create(al, Size(800.0, 600.0))
             do! manager.ViewPortChanged(Size(1200.0, 900.0))
             let native = TextBlock(Text = "Native content")
@@ -208,14 +362,14 @@ let lineKeys () =
 type CommandLog() =
     member val Runs: string list = [] with get, set
 
-    member private this.Logging name =
-        { new ICommand with
+    member private this.Logging name = {
+        new ICommand with
             member _.CanExecute _ = true
             member _.Execute _ = this.Runs <- this.Runs @ [ name ]
 
             [<CLIEvent>]
             member _.CanExecuteChanged = Event<EventHandler, EventArgs>().Publish
-        }
+    }
 
     member this.PreviousInputCommand = this.Logging "PreviousInput"
     member this.CancelCommand = this.Logging "Cancel"
@@ -296,22 +450,22 @@ let evaluation bindings =
     }
 
 /// Ask AL for the views of supplied bindings; the keys remain their display names.
-let viewsFor bindings = MCP.AlMcpClient().AlViewsFromQuery(evaluation bindings, null).Result
+let viewsFor bindings = (alClient ()).AlViewsFromQuery(evaluation bindings, null).Result
 
 /// Enumerate a map method through AL before inspecting its returned values.
 let mapMethod () =
-    MCP.AlMcpClient().QueryAl("= X #{}. class X Class. method Class Name Id.", null).Result
+    (alClient ()).QueryAl("= X #{}. class X Class. method Class Name Id.", null).Result
 
 /// Parse a printed value through the same AL endpoint used by inspection.
 let roundTrip value =
     let result =
-        MCP.AlMcpClient().QueryAlWith("= Value Input.", null, Map.ofList [ "Input", value ]).Result
+        (alClient ()).QueryAlWith("= Value Input.", null, Map.ofList [ "Input", value ]).Result
 
     (result.Bindings.Values |> List.find (fun binding -> binding.Symbol = "Value")).Value
 
 let printedRoundTrip value =
     let source = "= Value " + AlValue.Flat value + "."
-    let result = MCP.AlMcpClient().QueryAl(source, null).Result
+    let result = (alClient ()).QueryAl(source, null).Result
     (result.Bindings.Values |> List.find (fun binding -> binding.Symbol = "Value")).Value
 
 /// Atom names that require quoting, alone and as map keys.
@@ -441,7 +595,7 @@ let replAnswer bindings =
     let window = Avalonia.Controls.Window(Content = repl, Width = 1100, Height = 780)
     let model = repl.DataContext :?> ReplViewModel
 
-    model.History.Add(ReplSuccess("example", answer bindings, MCP.AlMcpClient()))
+    model.History.Add(ReplSuccess("example", answer bindings, alClient ()))
     window
 
 /// Middle-click a displayed target through the same inherited marker as the REPL.

@@ -12,6 +12,8 @@ open Aguil.Core.AlValues
 type AlException(message: string) =
     inherit Exception(message)
 
+type SlotSnapshot = { Branch: string; Value: AlValue }
+
 type AlMcpClient(url: string) =
     let http = new HttpClient()
     let mutable currentId = 0
@@ -139,6 +141,16 @@ type AlMcpClient(url: string) =
 
     new() = AlMcpClient("http://127.0.0.1:3031/mcp")
 
+    member _.HeadBranch() =
+        task {
+            let! content = callTool "listBranches" (box (Dictionary<string, obj>()))
+
+            return
+                content.GetProperty("branches").EnumerateArray()
+                |> Seq.find _.GetProperty("head").GetBoolean()
+                |> _.GetProperty("id").GetString()
+        }
+
     member _.QueryAl(source: string, branch: string) =
         task {
             let! content =
@@ -178,6 +190,32 @@ type AlMcpClient(url: string) =
             let! views = self.AlViewsFromQuery(results, results.Branch)
             return results, views
         }
+
+    member private self.QuerySlot(source, objectId, path, branch, value) =
+        task {
+            let arguments = Map.ofList [ "Object", AlAtom objectId; "Slot", AlAtom path ]
+
+            let arguments =
+                match value with
+                | Some value -> arguments.Add("Input", value)
+                | None -> arguments
+
+            let! result = self.QueryAlWith(source, branch, arguments)
+            do! self.ReleaseContext(result.Context)
+            return { Branch = result.Branch; Value = binding "Value" result }
+        }
+
+    member self.ReadSlot(objectId: string, path: string, branch: string) =
+        self.QuerySlot("get Object Slot Value.", objectId, path, branch, None)
+
+    member self.WriteSlot(objectId: string, path: string, branch: string, value: AlValue) =
+        self.QuerySlot(
+            "set_slot Object Slot Input, get Object Slot Value.",
+            objectId,
+            path,
+            branch,
+            Some value
+        )
 
     member self.Inspect(value: AlValue, branch: string) =
         task {

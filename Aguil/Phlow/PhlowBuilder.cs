@@ -28,6 +28,7 @@ public static class PhlowBuilder
             {
                 "aguil_native" => CSharpForward.Resolve(AlValues.text("target", fields)),
                 "text" => new TextView(AlValues.text("text", fields), grammar),
+                "xaml" => new XamlView(AlValues.text("content", fields)),
                 "columned_list" => new ColumnedList(
                     ((Value.AlList)fields[Value.NewAlAtom("items")]).Item,
                     AlValues.maps(fields[Value.NewAlAtom("columns")]).Select(Column),

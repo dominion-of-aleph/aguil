@@ -16,20 +16,23 @@
 * Saving packages to AL
 - Write out the package
 
-  #+begin_src elixir
-    new(:package, %{name: :window_manager, version: 1, deps: [:views], redef: true}, :window_manager)
+  #+begin_src text
+    new package #{deps => [views], name => window_manager, version => 1} window_manager,
+    active_build window_manager Build,
+    set_slot Build status open,
 
-    defclass :wm,
-             super: :object,
-             redef: true,
-             ivars: [%{name: :layout, type: :layout},
-                     %{name: :windows, type: :list}]
-             do end
+    @wm
+    #{
+      super => object,
+      ivars => [#{name => layout, type => layout}, #{name => windows, type => list}]
+    }.
 
-    set_slot(build, :status, :open)
-    active_build(:window_manager, build)
-    include_class(build, :wm)
-    include_method(build, :list, :as_greeting)
+    include_class Build wm.
+    include_method Build list as_greeting.
+  #+end_src
+- Delete a method
+  #+begin_src text
+    method brick_textbox to_xaml  Id, vm_retract_method brick_textbox toxaml Id.
   #+end_src
 
 - Then export in Elixir

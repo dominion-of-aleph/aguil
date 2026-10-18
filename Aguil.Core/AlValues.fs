@@ -1,6 +1,8 @@
 module Aguil.Core.AlValues
 
 open System
+open System.Globalization
+open System.Numerics
 
 type AlValue =
     | AlAtom of string
@@ -124,6 +126,37 @@ type AlValue =
     static member Pretty(width: int, v: AlValue) = AlValue.Pretty(width, 0, 0, v)
 
     override v.ToString() = AlValue.Pretty(80, v)
+
+/// Converts a supported AL scalar to its .NET representation.
+let toNet =
+    function
+    | AlText text -> box text
+    | AlAtom "true" -> box true
+    | AlAtom "false" -> box false
+    | AlInteger number -> box number
+    | AlFloat number -> box number
+    | value -> raise (NotSupportedException($"Unsupported AL value: {value}"))
+
+/// Converts a .NET value using an existing AL value as the type hint.
+let fromNet (value: obj) =
+    function
+    | AlText _ -> AlText(if isNull value then "" else value :?> string)
+    | AlAtom("true" | "false") ->
+        AlAtom(
+            if Convert.ToBoolean(value, CultureInfo.InvariantCulture) then
+                "true"
+            else
+                "false"
+        )
+    | AlInteger _ ->
+        AlInteger(
+            BigInteger.Parse(
+                Convert.ToString(value, CultureInfo.InvariantCulture),
+                CultureInfo.InvariantCulture
+            )
+        )
+    | AlFloat _ -> AlFloat(Convert.ToDouble(value, CultureInfo.InvariantCulture))
+    | original -> raise (NotSupportedException($"Unsupported AL value: {original}"))
 
 let maps value =
     match value with

@@ -22,6 +22,110 @@ type Facts(output: ITestOutputHelper) =
         snd example
 
     [<Fact>]
+    member _.XamlTextBindings() =
+        onUiAsync (fun () ->
+            task {
+                let! source = slotExample ()
+                use! first = textBinding source false
+                use! second = textBinding source true
+
+                for view in [ first; second ] do
+                    Assert.Equal("foo", see view.TextBox.Text)
+                    Assert.Equal("hi", view.TextBox.PlaceholderText)
+                    Assert.False(view.TextBox.IsReadOnly)
+
+                let! stored = editText first "edited <&\" #{literal}"
+                do! waitFor (fun () -> second.TextBox.Text = "edited <&\" #{literal}")
+                Assert.Equal(AlText second.TextBox.Text, see stored.Value)
+                let! stored = editText second "from second"
+                do! waitFor (fun () -> first.TextBox.Text = "from second")
+                Assert.Equal(AlText first.TextBox.Text, see stored.Value)
+
+                first.Window.Close()
+                second.Window.Close()
+                let address = source.Address
+
+                let! _ =
+                    source.Client.WriteSlot(
+                        address.ObjectId,
+                        address.Path,
+                        address.Branch,
+                        AlText "external"
+                    )
+
+                use! reopened = textBinding source false
+                Assert.Equal("external", see reopened.TextBox.Text)
+            })
+
+    [<Fact>]
+    member _.QueuedSlotWrites() =
+        onUiAsync (fun () ->
+            task {
+                let! source = slotExample ()
+                let address = source.Address
+                let! first = source.Slots.Open(address.ObjectId, address.Path, address.Branch)
+                let! second = source.Slots.Open(address.ObjectId, address.Path, null)
+                Assert.Same(first, second)
+                first.Value <- "first"
+                second.Value <- "last"
+                do! second.Pending
+                let! stored = source.Client.ReadSlot(address.ObjectId, address.Path, address.Branch)
+                Assert.Equal(box "last", see first.Value)
+                Assert.Equal(AlText "last", see stored.Value)
+                Assert.False(first.HasErrors)
+            })
+
+    [<Fact>]
+    member _.RetiredSlotEntryIsReleased() =
+        task {
+            let! source = slotExample ()
+            let! key = collectedSlot source
+            let address = source.Address
+            let! replacement = source.Slots.Open(address.ObjectId, address.Path, address.Branch)
+            do! replacement.Pending
+            do! collectGarbage ()
+            Assert.False(see (fst (key.TryGetTarget())))
+            let! reopened = source.Slots.Open(address.ObjectId, address.Path, address.Branch)
+            Assert.Same(replacement, reopened)
+            do! reopened.Pending
+        }
+
+    [<Fact>]
+    member _.MissingSlotBinding() =
+        onUiAsync (fun () ->
+            task {
+                let! source = slotExample ()
+
+                let! slot =
+                    source.Slots.Open(source.Address.ObjectId, "missing", source.Address.Branch)
+
+                do! slot.Pending
+                Assert.True(see slot.HasErrors)
+            })
+
+    [<Fact>]
+    member _.RejectedSlotWrite() =
+        onUiAsync (fun () ->
+            task {
+                let! source = slotExample ()
+                let address = source.Address
+                let! slot = source.Slots.Open(address.ObjectId, "choice", address.Branch)
+                do! slot.Pending
+                let textbox = boundTextBox slot
+                textbox.Text <- "rejected"
+                do! slot.Pending
+                do! waitFor (fun () -> DataValidationErrors.GetHasErrors textbox)
+                Assert.True(see slot.HasErrors)
+                let! unchanged = source.Client.ReadSlot(address.ObjectId, "choice", address.Branch)
+                Assert.Equal(AlText "foo", see unchanged.Value)
+                textbox.Text <- "bar"
+                do! slot.Pending
+                do! waitFor (fun () -> not (DataValidationErrors.GetHasErrors textbox))
+                let! accepted = source.Client.ReadSlot(address.ObjectId, "choice", address.Branch)
+                Assert.Equal(AlText "bar", see accepted.Value)
+            })
+
+    [<Fact>]
     member _.QuotedValuesRoundTrip() =
         for value in quotedValues () do
             see (string value) |> ignore
@@ -144,7 +248,7 @@ type Facts(output: ITestOutputHelper) =
     member _.InspectionsFollowAnswers() =
         let first = answer [ "x", AlInteger 1I ]
         let second = answer [ "x", AlInteger 2I ]
-        let entry = ReplSuccess("example", first, Aguil.Core.MCP.AlMcpClient())
+        let entry = ReplSuccess("example", first, alClient ())
 
         for change in
             [

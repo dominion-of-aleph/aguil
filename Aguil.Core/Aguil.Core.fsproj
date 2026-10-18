@@ -13,6 +13,7 @@
         <Compile Include="MCP/History.fs"/>
         <Compile Include="MCP/Views.fs"/>
         <Compile Include="MCP/Client.fs"/>
+        <Compile Include="Slots.fs"/>
     </ItemGroup>
 
 </Project>
