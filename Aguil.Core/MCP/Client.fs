@@ -217,6 +217,18 @@ type AlMcpClient(url: string) =
             Some value
         )
 
+    member self.RunSlot(objectId: string, path: string, branch: string) =
+        task {
+            let! result =
+                self.QueryAlWith(
+                    "get Object Slot Action, run Action [].",
+                    branch,
+                    Map.ofList [ "Object", AlAtom objectId; "Slot", AlAtom path ]
+                )
+
+            do! self.ReleaseContext(result.Context)
+        }
+
     member self.Inspect(value: AlValue, branch: string) =
         task {
             let query = view_query
