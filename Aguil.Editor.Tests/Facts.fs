@@ -6,6 +6,8 @@ open Aguil.Editor.Examples
 open Aguil.Views
 open Aguil.ViewModels
 open Aguil.Core.AlValues
+open Aguil.Core
+open System.Collections.Specialized
 open Avalonia.Controls
 
 type Facts(output: ITestOutputHelper) =
@@ -22,10 +24,59 @@ type Facts(output: ITestOutputHelper) =
         snd example
 
     [<Fact>]
+    member _.OpenSlotDuringNotification() =
+        task {
+            let! slot = openSlotDuringNotification ()
+            do! slot.Pending
+            Assert.Equal(box "foo", see slot.Value)
+        }
+
+    [<Fact>]
+    member _.SharedCommandListener() =
+        task {
+            let _, listener, next = commandListener ()
+            use first = listener.Watch("main", 10L)
+            let! request = next ()
+            use second = listener.Watch("main", 10L)
+            request.Reply.SetResult { Branch = "main"; From = 10L; Cursor = 12L; Commands = [] }
+            let! waiting = next ()
+            use joining = listener.Watch("main", 11L)
+            Assert.False(waiting.Cancellation.IsCancellationRequested)
+            Assert.Equal(12L, see waiting.Cursor)
+            waiting.Reply.SetException(System.IO.IOException("offline"))
+            let! retry = next ()
+            Assert.Equal(waiting.Cursor, retry.Cursor)
+            first.Dispose()
+            second.Dispose()
+            Assert.False(retry.Cancellation.IsCancellationRequested)
+            joining.Dispose()
+            Assert.True(retry.Cancellation.IsCancellationRequested)
+            use reopened = listener.Watch("main", 20L)
+            let! restarted = next ()
+            Assert.Equal(20L, see restarted.Cursor)
+        }
+
+    [<Fact>]
+    member _.CommandListenerSeparatesBranches() =
+        task {
+            let _, listener, next = commandListener ()
+            use first = listener.Watch("main", 10L)
+            let! main = next ()
+            use second = listener.Watch("fork", 20L)
+            let! fork = next ()
+            Assert.Equal("main", see main.Branch)
+            Assert.Equal("fork", see fork.Branch)
+            Assert.False(main.Cancellation.IsCancellationRequested)
+            second.Dispose()
+            Assert.True(fork.Cancellation.IsCancellationRequested)
+            Assert.False(main.Cancellation.IsCancellationRequested)
+        }
+
+    [<Fact>]
     member _.XamlTextBindings() =
         onUiAsync (fun () ->
             task {
-                let! source = slotExample ()
+                let! source = observationExample ()
                 use! first = textBinding source false
                 use! second = textBinding source true
 
@@ -41,8 +92,6 @@ type Facts(output: ITestOutputHelper) =
                 do! waitFor (fun () -> first.TextBox.Text = "from second")
                 Assert.Equal(AlText first.TextBox.Text, see stored.Value)
 
-                first.Window.Close()
-                second.Window.Close()
                 let address = source.Address
 
                 let! _ =
@@ -53,18 +102,136 @@ type Facts(output: ITestOutputHelper) =
                         AlText "external"
                     )
 
+                do!
+                    waitFor (fun () ->
+                        first.TextBox.Text = "external" && second.TextBox.Text = "external")
+
+                first.Window.Close()
+                second.Window.Close()
                 use! reopened = textBinding source false
                 Assert.Equal("external", see reopened.TextBox.Text)
+            })
+
+    [<Fact>]
+    member _.ObservableListChanges() =
+        onUiAsync (fun () ->
+            task {
+                let client = alClient ()
+                let cache = ObservationCache(client)
+                let! list = observedList client cache null []
+                let! same = cache.Open(list.ObjectId, list.Branch)
+                Assert.Same(list, same)
+                let changes = ResizeArray<NotifyCollectionChangedAction>()
+                list.Items.CollectionChanged.Add(fun change -> changes.Add change.Action)
+                let! _ = changeList list "insert List 0 7, insert List 0 7."
+                do! waitFor (fun () -> list.Items.Count = 2)
+
+                Assert.Equal<AlValue list>(
+                    [ AlInteger 7I; AlInteger 7I ],
+                    see (List.ofSeq list.Items)
+                )
+
+                Assert.Equal<NotifyCollectionChangedAction list>(
+                    [ NotifyCollectionChangedAction.Add; NotifyCollectionChangedAction.Add ],
+                    see (List.ofSeq changes)
+                )
+
+                list.Items.Clear()
+
+                client.Commands.Trigger(
+                    {
+                        Branch = list.Branch
+                        From = System.Int64.MaxValue - 1L
+                        Cursor = System.Int64.MaxValue
+                        Commands = []
+                    }
+                )
+
+                do! waitFor (fun () -> List.ofSeq list.Items = [ AlInteger 7I; AlInteger 7I ])
+
+                let! _ =
+                    changeList
+                        list
+                        "remove List 0, replace List [2, 3], lambda [X, Y] Double {= Y (* X 2)}, map List Double."
+
+                do! waitFor (fun () -> List.ofSeq list.Items = [ AlInteger 4I; AlInteger 6I ])
+                let stable = list.Items
+                let! _ = changeList list "set_slot List contents [9]."
+                do! waitFor (fun () -> List.ofSeq list.Items = [ AlInteger 9I ])
+                do! list.Refresh()
+                Assert.Same(stable, list.Items)
+                let! _ = changeList list "set_slot List contents [8, 9], insert List 2 10."
+
+                do!
+                    waitFor (fun () ->
+                        List.ofSeq list.Items = [ AlInteger 8I; AlInteger 9I; AlInteger 10I ])
+
+                let! rebuilt = ObservationCache(client).Open(list.ObjectId, list.Branch)
+
+                Assert.Equal<AlValue list>(
+                    List.ofSeq list.Items,
+                    see (List.ofSeq (rebuilt :?> AlObservableList).Items)
+                )
+            })
+
+    [<Fact>]
+    member _.XamlListBindings() =
+        onUiAsync (fun () ->
+            task {
+                let client = alClient ()
+
+                let! created =
+                    alQuery
+                        client
+                        null
+                        "new brick_textbox #{text => \"hello\", is_read_only => false} Text."
+                        []
+
+                let item = Aguil.Core.MCP.Evaluation.binding "Text" created
+                let! list = observedList client (ObservationCache(client)) created.Branch [ item ]
+                let! firstWindow, first = listBinding list
+                let! secondWindow, second = listBinding list
+
+                try
+                    do!
+                        waitFor (fun () ->
+                            (listTextBoxes first |> List.exists (fun t -> t.Text = "hello"))
+                            && (listTextBoxes second |> List.exists (fun t -> t.Text = "hello")))
+
+                    let firstText = List.exactlyOne (listTextBoxes first)
+                    let secondText = List.exactlyOne (listTextBoxes second)
+                    Assert.NotSame(firstText, secondText)
+                    firstText.Text <- "edited"
+                    do! waitFor (fun () -> secondText.Text = "edited")
+                    let! _ = changeList list "get List contents [Item], insert List 0 Item."
+
+                    do!
+                        waitFor (fun () ->
+                            first.ItemCount = 2
+                            && second.ItemCount = 2
+                            && (listTextBoxes first).Length = 2
+                            && (listTextBoxes second).Length = 2)
+
+                    Assert.Contains(firstText, listTextBoxes first)
+                    let! _ = changeList list "remove List 0."
+                    do! waitFor (fun () -> first.ItemCount = 1 && second.ItemCount = 1)
+                    Assert.Equal("edited", see secondText.Text)
+                finally
+                    firstWindow.Close()
+                    secondWindow.Close()
             })
 
     [<Fact>]
     member _.QueuedSlotWrites() =
         onUiAsync (fun () ->
             task {
-                let! source = slotExample ()
+                let! source = observationExample ()
                 let address = source.Address
-                let! first = source.Slots.Open(address.ObjectId, address.Path, address.Branch)
-                let! second = source.Slots.Open(address.ObjectId, address.Path, null)
+
+                let! first =
+                    source.ObservationCache.Open(address.ObjectId, address.Path, address.Branch)
+
+                let! second = source.ObservationCache.Open(address.ObjectId, address.Path, null)
                 Assert.Same(first, second)
                 first.Value <- "first"
                 second.Value <- "last"
@@ -76,16 +243,23 @@ type Facts(output: ITestOutputHelper) =
             })
 
     [<Fact>]
-    member _.RetiredSlotEntryIsReleased() =
+    member _.RetiredReferenceIsReleased() =
         task {
-            let! source = slotExample ()
-            let! key = collectedSlot source
+            let! source = observationExample ()
+            let! key, owner = collectedReference source
             let address = source.Address
-            let! replacement = source.Slots.Open(address.ObjectId, address.Path, address.Branch)
+
+            let! replacement =
+                source.ObservationCache.Open(address.ObjectId, address.Path, address.Branch)
+
             do! replacement.Pending
             do! collectGarbage ()
             Assert.False(see (fst (key.TryGetTarget())))
-            let! reopened = source.Slots.Open(address.ObjectId, address.Path, address.Branch)
+            Assert.False(see (fst (owner.TryGetTarget())))
+
+            let! reopened =
+                source.ObservationCache.Open(address.ObjectId, address.Path, address.Branch)
+
             Assert.Same(replacement, reopened)
             do! reopened.Pending
         }
@@ -94,10 +268,14 @@ type Facts(output: ITestOutputHelper) =
     member _.MissingSlotBinding() =
         onUiAsync (fun () ->
             task {
-                let! source = slotExample ()
+                let! source = observationExample ()
 
                 let! slot =
-                    source.Slots.Open(source.Address.ObjectId, "missing", source.Address.Branch)
+                    source.ObservationCache.Open(
+                        source.Address.ObjectId,
+                        "missing",
+                        source.Address.Branch
+                    )
 
                 do! slot.Pending
                 Assert.True(see slot.HasErrors)
@@ -107,15 +285,16 @@ type Facts(output: ITestOutputHelper) =
     member _.RejectedSlotWrite() =
         onUiAsync (fun () ->
             task {
-                let! source = slotExample ()
+                let! source = observationExample ()
                 let address = source.Address
-                let! slot = source.Slots.Open(address.ObjectId, "choice", address.Branch)
+                let! slot = source.ObservationCache.Open(address.ObjectId, "choice", address.Branch)
                 do! slot.Pending
                 let textbox = boundTextBox slot
                 textbox.Text <- "rejected"
                 do! slot.Pending
                 do! waitFor (fun () -> DataValidationErrors.GetHasErrors textbox)
                 Assert.True(see slot.HasErrors)
+                Assert.Equal("foo", see textbox.Text)
                 let! unchanged = source.Client.ReadSlot(address.ObjectId, "choice", address.Branch)
                 Assert.Equal(AlText "foo", see unchanged.Value)
                 textbox.Text <- "bar"

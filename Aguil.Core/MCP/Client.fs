@@ -5,18 +5,22 @@ open System.Collections.Generic
 open System.Net.Http
 open System.Net.Http.Json
 open System.Text.Json
+open System.Threading
 open System.Threading.Tasks
 open Aguil.Core.MCP.Evaluation
 open Aguil.Core.AlValues
+open Aguil.Core
 
 type AlException(message: string) =
     inherit Exception(message)
 
 type SlotSnapshot = { Branch: string; Value: AlValue }
+type ObjectSnapshot = { Cursor: int64; Classes: string list; Value: AlValue }
 
-type AlMcpClient(url: string) =
+type AlMcpClient(url: string) as self =
     let http = new HttpClient()
     let mutable currentId = 0
+    let commands = Event<CommandBatch>()
 
     let sequence (xs: Result<'a, 'e> list) : Result<'a list, 'e> =
         List.foldBack
@@ -88,20 +92,26 @@ type AlMcpClient(url: string) =
             | Error _ -> text ()
         | _ -> text ()
 
-    let callTool (toolName: string) (arguments: obj) =
+    let callToolWithCancellation
+        (toolName: string)
+        (arguments: obj)
+        (cancellation: CancellationToken)
+        =
         task {
             let request = {|
                 jsonrpc = "2.0"
-                id = currentId
+                id = Interlocked.Increment(&currentId)
                 method = "tools/call"
                 ``params`` = {| name = toolName; arguments = arguments |}
             |}
 
-            currentId <- currentId + 1
-
-            let! response = http.PostAsJsonAsync(url, request)
+            use! response = http.PostAsJsonAsync(url, request, cancellation)
             response.EnsureSuccessStatusCode() |> ignore
-            let! json = response.Content.ReadFromJsonAsync<JsonElement>()
+            let! json = response.Content.ReadFromJsonAsync<JsonElement>(cancellation)
+
+            match json.TryGetProperty "error" with
+            | true, error -> raise (AlException(error.ToString()))
+            | _ -> ()
 
             let result = json.GetProperty "result"
 
@@ -110,6 +120,13 @@ type AlMcpClient(url: string) =
             // non structured content is for the LLMs
             return result.GetProperty "structuredContent"
         }
+
+    let callTool name arguments = callToolWithCancellation name arguments CancellationToken.None
+
+    let decode value =
+        match mcp_decode_to_term value with
+        | Ok value -> value
+        | Error error -> invalidOp (string error)
 
     let grab (content: JsonElement) =
         content.EnumerateArray()
@@ -140,6 +157,65 @@ type AlMcpClient(url: string) =
     }
 
     new() = AlMcpClient("http://127.0.0.1:3031/mcp")
+
+    member _.Commands = commands
+
+    member val CommandLog =
+        CommandLogListener(
+            (fun branch cursor cancellation -> self.ReadCommands(branch, cursor, cancellation)),
+            commands.Trigger
+        )
+
+    member _.ReadObject(objectId: string, branch: string) =
+        task {
+            let! content = callTool "readObject" {| ``object`` = objectId; branch = branch |}
+
+            return {
+                Cursor = content.GetProperty("cursor").GetInt64()
+                Classes =
+                    content.GetProperty("classes").EnumerateArray()
+                    |> Seq.map _.GetString()
+                    |> List.ofSeq
+                Value = decode (content.GetProperty "value")
+            }
+        }
+
+    member _.ReadCommands(branch: string, cursor: int64, cancellation: CancellationToken) =
+        task {
+            let! content =
+                callToolWithCancellation
+                    "observeCommands"
+                    {| cursors = dict [ branch, cursor ] |}
+                    cancellation
+
+            return
+                decode (content.GetProperty "batches")
+                |> maps
+                |> List.map (fun batch ->
+                    match
+                        batch[AlAtom "branch"], batch[AlAtom "cursor"], batch[AlAtom "commands"]
+                    with
+                    | AlText branch, AlInteger next, AlList commands -> {
+                        Branch = branch
+                        From = cursor
+                        Cursor = int64 next
+                        Commands = commands
+                      }
+                    | _ -> invalidOp "Expected a command batch.")
+                |> List.exactlyOne
+        }
+
+    member self.Xaml(value: AlValue, branch: string) =
+        task {
+            let! result =
+                self.QueryAlWith("to_xaml Object Text.", branch, Map.ofList [ "Object", value ])
+
+            do! self.ReleaseContext(result.Context)
+
+            match binding "Text" result with
+            | AlText text -> return text
+            | value -> return invalidOp $"Expected XAML text, got {value}"
+        }
 
     member _.HeadBranch() =
         task {
@@ -202,6 +278,7 @@ type AlMcpClient(url: string) =
 
             let! result = self.QueryAlWith(source, branch, arguments)
             do! self.ReleaseContext(result.Context)
+
             return { Branch = result.Branch; Value = binding "Value" result }
         }
 

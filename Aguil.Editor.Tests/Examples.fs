@@ -124,8 +124,45 @@ let onUiAsync (f: unit -> Task<'a>) =
 
 let alClient () = MCP.AlMcpClient()
 
-/// A durable object with editable text and a constrained choice.
-let bindingObject (al: MCP.AlMcpClient) : Task<SlotAddress> =
+type CommandRequest = {
+    Branch: string
+    Cursor: int64
+    Cancellation: CancellationToken
+    Reply: TaskCompletionSource<CommandBatch>
+}
+
+/// A controllable command-log reader, sharing a plain broker with any other producers.
+let commandListener () =
+    let requests = System.Threading.Channels.Channel.CreateUnbounded<CommandRequest>()
+    let broker = Event<CommandBatch>()
+
+    let listener =
+        CommandLogListener(
+            (fun branch cursor cancellation ->
+                let reply =
+                    TaskCompletionSource<CommandBatch>(
+                        TaskCreationOptions.RunContinuationsAsynchronously
+                    )
+
+                requests.Writer.TryWrite {
+                    Branch = branch
+                    Cursor = cursor
+                    Cancellation = cancellation
+                    Reply = reply
+                }
+                |> ignore
+
+                reply.Task.WaitAsync cancellation),
+            broker.Trigger
+        )
+
+    let next () = requests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds 5.)
+    broker.Publish, listener, next
+
+type BindingAddress = { ObjectId: string; Branch: string; Path: string }
+
+/// A durable object with editable text, a constrained choice and a captured action.
+let bindingObject (al: MCP.AlMcpClient) : Task<BindingAddress> =
     task {
         let! result =
             al.QueryAl(
@@ -133,8 +170,11 @@ let bindingObject (al: MCP.AlMcpClient) : Task<SlotAddress> =
                 @aguil_xaml_example
                 #{super => object,
                   ivars => [#{name => text, type => string},
-                            #{name => choice, domain => ["foo", "bar"]}]}.
+                            #{name => choice, domain => ["foo", "bar"]},
+                            #{name => action}]}.
                 new aguil_xaml_example #{text => "foo", choice => "foo"} Object.
+                lambda [] Action {set_slot Object text "clicked"},
+                set_slot Object action Action.
                 """,
                 null
             )
@@ -146,19 +186,39 @@ let bindingObject (al: MCP.AlMcpClient) : Task<SlotAddress> =
             | AlAtom id -> id
             | value -> failwithf "Expected a durable object, got %A" value
 
-        let address: SlotAddress = { ObjectId = id; Branch = result.Branch; Path = "text" }
+        let address: BindingAddress = { ObjectId = id; Branch = result.Branch; Path = "text" }
         return address
     }
 
-type SlotExample = { Client: MCP.AlMcpClient; Slots: Slots; Address: SlotAddress }
+type ObservationExample = {
+    Client: MCP.AlMcpClient
+    ObservationCache: ObservationCache
+    Address: BindingAddress
+}
 
 /// A connection, durable object and shared slot collection to build examples on.
-let slotExample () =
+let observationExample () =
     task {
         let al = alClient ()
         let! address = bindingObject al
-        return { Client = al; Slots = Slots(al); Address = address }
+        return { Client = al; ObservationCache = ObservationCache(al); Address = address }
     }
+
+/// A binding notification can open another slot on the same object.
+let openSlotDuringNotification () =
+    onUiAsync (fun () ->
+        task {
+            let! source = observationExample ()
+            let address = source.Address
+            let! slot = source.ObservationCache.Open(address.ObjectId, address.Path, address.Branch)
+
+            use subscription =
+                (slot :> System.ComponentModel.INotifyPropertyChanged)
+                    .PropertyChanged.Subscribe(fun _ -> slot.Owner.Slot "choice" |> ignore)
+
+            do! slot.Owner.Refresh()
+            return slot.Owner.Slot "choice"
+        })
 
 /// Explicit collection for exploring weakly held objects without blocking the UI thread.
 let collectGarbage () =
@@ -168,31 +228,34 @@ let collectGarbage () =
         GC.Collect()
     }
 
-/// Returns a weak handle to the retired entry's key, leaving the collection reusable.
-let collectedSlot (example: SlotExample) =
+/// Returns a weak handle to an unused reference, leaving the cache reusable.
+let collectedReference (example: ObservationExample) =
     task {
         let address = example.Address
         // Keep the temporary slot out of the caller's async state.
         let! key =
             Task.Run(fun () ->
-                let opened = example.Slots.Open(address.ObjectId, address.Path, address.Branch)
+                let opened =
+                    example.ObservationCache.Open(address.ObjectId, address.Path, address.Branch)
+
                 let slot = opened.GetAwaiter().GetResult()
                 slot.Pending.GetAwaiter().GetResult()
-                WeakReference<SlotAddress>(slot.Address))
+
+                WeakReference<AlMutableObjectSlot>(slot), WeakReference<AlMutableObject>(slot.Owner))
 
         do! collectGarbage ()
         return key
     }
 
 /// An ordinary textbox using the same compiled path as al:Bind.
-let boundTextBox (slot: Slot) =
+let boundTextBox (slot: AlMutableObjectSlot) =
     let textbox = TextBox()
-    let source = Aguil.Bindings.SlotSource(Slot = slot)
+    let source = Aguil.Bindings.ReferenceSource(Reference = slot)
 
     textbox.Bind(
         TextBox.TextProperty,
-        Avalonia.Data.CompiledBinding.Create<Aguil.Bindings.SlotSource, obj>(
-            (fun s -> s.Slot.Value),
+        Avalonia.Data.CompiledBinding.Create<Aguil.Bindings.ReferenceSource, obj>(
+            (fun s -> s.Reference.Value),
             source
         )
     )
@@ -211,8 +274,54 @@ let waitFor condition =
             do! Task.Delay 10
     }
 
+let alQuery (client: MCP.AlMcpClient) branch source bindings =
+    task {
+        let! result = client.QueryAlWith(source, branch, Map.ofList bindings)
+        do! client.ReleaseContext(result.Context)
+        return result
+    }
+
+let observedList (client: MCP.AlMcpClient) (cache: ObservationCache) branch items =
+    task {
+        let! result =
+            alQuery client branch "new observable_list Items List." [ "Items", AlList items ]
+
+        let! reference =
+            match binding "List" result with
+            | AlAtom id -> cache.Open(id, result.Branch)
+            | value -> failwithf "Expected a list object, got %A" value
+
+        return reference :?> AlObservableList
+    }
+
+let changeList (list: AlObservableList) source =
+    alQuery list.Client list.Branch source [ "List", list.Identifier ]
+
+/// Another ordinary ListBox observing the same AL list, with its own item controls.
+let listBinding (source: AlObservableList) =
+    task {
+        let! result =
+            alQuery source.Client source.Branch "new brick_list Items Brick." [
+                "Items", source.Identifier
+            ]
+
+        let! xaml = source.Client.Xaml(binding "Brick" result, source.Branch)
+        let content = XamlView.Load(xaml) :?> ContentControl
+        let window = Window(Content = content, Width = 400., Height = 300.)
+        Inspector.SetInspection(window, Inspection(source.Identifier, None, source.Branch))
+        window.Show()
+        return window, content.Content :?> ListBox
+    }
+
+let listTextBoxes (view: ListBox) =
+    view.GetVisualDescendants()
+    |> Seq.choose (function
+        | :? TextBox as text -> Some text
+        | _ -> None)
+    |> Seq.toList
+
 type TextBinding = {
-    Source: SlotExample
+    Source: ObservationExample
     Window: Window
     TextBox: TextBox
 } with
@@ -221,7 +330,7 @@ type TextBinding = {
         member self.Dispose() = self.Window.Close()
 
 /// Opens either XAML spelling against an existing object; returns the live view.
-let textBinding (source: SlotExample) propertyElement =
+let textBinding (source: ObservationExample) propertyElement =
     task {
         let address = source.Address
 
@@ -362,14 +471,14 @@ let lineKeys () =
 type CommandLog() =
     member val Runs: string list = [] with get, set
 
-    member private this.Logging name = {
-        new ICommand with
+    member private this.Logging name =
+        { new ICommand with
             member _.CanExecute _ = true
             member _.Execute _ = this.Runs <- this.Runs @ [ name ]
 
             [<CLIEvent>]
             member _.CanExecuteChanged = Event<EventHandler, EventArgs>().Publish
-    }
+        }
 
     member this.PreviousInputCommand = this.Logging "PreviousInput"
     member this.CancelCommand = this.Logging "Cancel"

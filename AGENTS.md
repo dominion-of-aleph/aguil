@@ -45,6 +45,19 @@ Raw participates through ordinary view discovery and priority (100). The MCP res
 view configures a columned list with editor cells; bindings use embedded inspectors.
 Keep the temporary MCP knowledge in its adapter, not in separate result-specific UI hosts.
 
+`ObservationCache` shares objects by branch and object id; each object owns one slot per opened path.
+One F# `Event` per client acts as the broker, broadcasting to filtered subscribers.
+`CommandLogListener` reads each active branch independently and calls its publish callback.
+Joining observers never rewind a shared reader: subscribe, then refresh the current object.
+An object detects gaps from batch boundaries and recovers with a whole-object read.
+`AlMutableObject` projects its commands; `AlMutableObjectSlot` exposes a bound property;
+`AlObservableList` owns the observable item collection. Writes go to AL, not directly to other
+controls. List deltas are an acceleration: a fresh snapshot must reconstruct the same contents.
+Snapshot slot entries before notifying: a binding callback can open another slot on its owner.
+Repeated identical `changes` assignments remain distinct within a batch; snapshot positions
+prevent reapplying old deltas. Slot writes reread authoritative state, without acknowledgement cursors.
+Cache references/data, never visual controls: each list view renders its own item controls.
+
 `InspectionTarget` is an inheritable attached property on controls, not the inspector tool.
 It carries the value to inspect. Individual list items/cells can have their own targets;
 a view need not have one. Rebinding must replace or clear a stale target.
