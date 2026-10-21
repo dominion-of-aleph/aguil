@@ -263,8 +263,41 @@ type AlMcpClient(url: string) as self =
     member self.QueryAlViews(source: string, branch: string) =
         task {
             let! results = self.QueryAlTagged(source, branch, History.tag)
-            let! views = self.AlViewsFromQuery(results, results.Branch)
-            return results, views
+            return! self.DescribeSolution(results)
+        }
+
+    member self.Describe(className: string, fields: Map<AlValue, AlValue>, branch: string) =
+        task {
+            let! result =
+                self.QueryAlWith(
+                    "new Class Fields View, to_map View Map.",
+                    branch,
+                    Map.ofList [ "Class", AlAtom className; "Fields", AlMap fields ]
+                )
+
+            do! self.ReleaseContext(result.Context)
+
+            return
+                binding "Map" result
+                |> function
+                    | AlMap fields -> fields
+                    | value -> invalidOp $"Expected view fields, got {value}"
+        }
+
+    member self.DescribeSolution(result: EvaluationContext) =
+        task {
+            let! views = self.AlViewsFromQuery(result, result.Branch)
+            let! raw = self.Describe("phlow_clist", Views.rawFields result, result.Branch)
+
+            return {
+                Result = result
+                Views =
+                    raw
+                    :: [
+                        for binding in result.Bindings.Values ->
+                            Views.inspector binding (Map.find binding.Symbol views)
+                    ]
+            }
         }
 
     member private self.QuerySlot(source, objectId, path, branch, value) =

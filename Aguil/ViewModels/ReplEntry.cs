@@ -57,7 +57,7 @@ public sealed partial class ReplSuccess : ReplEntry
     public Inspection? Inspection => Solutions.ElementAtOrDefault(Index);
 
     public IEnumerable<FSharpMap<Value, Value>> Views =>
-        Solution is { } solution ? Core.MCP.Views.fromSolution(solution) : [];
+        Solution is { } solution ? solution.Views : [];
 
     public Evaluation.EvaluationContext? Result => Solution?.Result;
 
@@ -121,8 +121,7 @@ public sealed partial class ReplSuccess : ReplEntry
             return;
         }
 
-        var views = await _al.AlViewsFromQuery(result, result.Branch);
-        Solutions.Add(new Answer(new Evaluation.Solution(result, views)));
+        Solutions.Add(new Answer(await _al.DescribeSolution(result)));
         Index = Solutions.Count - 1;
         await _al.ReleaseContext(frontier.Context);
     }

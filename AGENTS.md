@@ -28,12 +28,10 @@ adding another rendering path. Prefer Avalonia's components over custom layout m
   Keep that knowledge in AL rather than duplicating its class hierarchy in C#.
 - `Aguil/Phlow` constructs these descriptions into `AlPhlowView` wrappers: a native
   `Control` plus title and priority. `PhlowBuilder` maps view names to implementations.
-  `CSharpForward` wraps a supplied control; `EmbeddedInspector` embeds another inspector.
-  Neither implements forwarding to a particular view on another object.
-  `ColumnedList` wraps Avalonia's `TableView` with any number of independently templated columns.
-- `Aguil/Elements` builds controls without view metadata. A `Stencil` separates control
-  creation from binding an item, allowing reuse. Cells contain ordinary controls.
-- `Aguil/Editor` holds Avalonia editor integration and read-only editors;
+  `AlPhlowView` wraps any supplied control; `CSharpForward` exports native controls to AL.
+  XAML and embedded inspectors use the same wrapper, without view-specific subclasses.
+  AL's `brick_table` emits native `TableView` columns and recycling `DataTemplate`s.
+- `Aguil/Editor` holds Avalonia editor integration;
   `Aguil.Editor` holds F# grammar, highlighting, and keymap logic.
 - `Aguil.Core/AlValues.fs` holds AL values and printing. `Aguil.Core/MCP` isolates the
   transport and temporary evaluation adapter. MCP results become ordinary view descriptions
@@ -44,6 +42,19 @@ C#-authored controls enter the same host through `AlPhlowView` wrappers.
 Raw participates through ordinary view discovery and priority (100). The MCP result's Raw
 view configures a columned list with editor cells; bindings use embedded inspectors.
 Keep the temporary MCP knowledge in its adapter, not in separate result-specific UI hosts.
+AL text views use `phlow_text` -> `brick_editor` -> XAML. The host imports `ae` for
+AvaloniaEdit and `editor` for the existing `Code` attached properties. Explicit slot
+`xaml_name` metadata is a qualified property name; ordinary slots derive `Tag.Property`.
+Reusable bricks and XAML serializers belong to AL's `views` package, not `window_manager`.
+`Code.Text` binds two-way without resetting unchanged text (which would clear undo).
+Raw displays use AL's `phlow_raw` and `brick_editor_template`; table columns select a
+cell brick class, such as `brick_editor_cell` or `brick_text`. `phlow_clist` supplies
+`brick_table` XAML and row data. `Bindings.Data` converts AL lists and row fields for
+ordinary bindings; native templates preserve recycled controls. Row inspection targets
+are inherited by cells. `Code.FollowCaret` handles outer scrolling.
+The MCP adapter asks AL to describe its Raw table before storing the completed `Solution`.
+XAML slot metadata is resolved by name, with the nearest class overriding inherited specs.
+Failed inspection requests leave displayed panes unchanged and report the error, without a fallback view.
 
 `ObservationCache` shares objects by branch and object id; each object owns one slot per opened path.
 One F# `Event` per client acts as the broker, broadcasting to filtered subscribers.

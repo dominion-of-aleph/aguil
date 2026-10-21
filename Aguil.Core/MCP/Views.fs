@@ -17,12 +17,12 @@ let rows separator section = [
         AlMap(Map.ofList [ AlAtom "text", AlText(Binding.prettyFailure separator failure) ])
 ]
 
-let raw result =
+let rawFields result =
     Map.ofList [
-        AlAtom "view", AlText "columned_list"
         AlAtom "title", AlText "Raw"
         AlAtom "priority", AlInteger 100I
-        AlAtom "columns", AlList [ AlMap(Map.ofList [ AlAtom "element", AlText "editor" ]) ]
+        AlAtom "show_headers", AlAtom "false"
+        AlAtom "columns", AlList [ AlMap(Map.ofList [ AlAtom "cell", AlAtom "brick_editor_cell" ]) ]
         AlAtom "items",
         AlList(rows " = " result.Bindings @ rows " : " result.Constraints @ rows " => " result.Store)
     ]
@@ -35,10 +35,3 @@ let inspector binding views =
         AlAtom "target", binding.Value
         AlAtom "views", AlList(List.map AlMap views)
     ]
-
-/// Describe the MCP envelope using the same view maps AL returns.
-let fromSolution (solution: Solution) = [
-    yield raw solution.Result
-    for binding in solution.Result.Bindings.Values do
-        yield inspector binding solution.Views[binding.Symbol]
-]

@@ -3,17 +3,29 @@ using Avalonia.Markup.Xaml;
 
 namespace Aguil.Phlow;
 
-public sealed class XamlView(string content) : AlPhlowView(Load(content))
+public static class XamlView
 {
-    public static Control Load(string content)
+    public static Control Load(string content, object? data = null)
     {
-        return AvaloniaRuntimeXamlLoader.Parse<ContentControl>(
-            $"""
-             <ContentControl xmlns="https://github.com/avaloniaui"
-                             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                             xmlns:al="using:Aguil.Bindings">
-                 {content}
-             </ContentControl>
-             """, typeof(XamlView).Assembly);
+        var host = AvaloniaRuntimeXamlLoader.Parse<ContentControl>(
+            $$"""
+              <ContentControl xmlns="https://github.com/avaloniaui"
+                              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                              xmlns:al="using:Aguil.Bindings"
+                              xmlns:phlow="using:Aguil.Phlow"
+                              xmlns:editor="using:Aguil.Editor"
+                              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit">
+                  <ContentControl.Styles>
+                      <Style Selector="ae|TextEditor">
+                          <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+                          <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
+                          <Setter Property="editor:Code.Keymap" Value="{x:Static editor:Keymaps.defaults}" />
+                      </Style>
+                  </ContentControl.Styles>
+                  {{content}}
+              </ContentControl>
+              """, typeof(XamlView).Assembly);
+        if (data is not null) host.DataContext = data;
+        return host;
     }
 }

@@ -1,9 +1,6 @@
 using System;
-using System.Linq;
-using System.Numerics;
 using Aguil.Core;
-using Aguil.Elements;
-using Avalonia.Controls;
+using Aguil.Views;
 using Microsoft.FSharp.Collections;
 using Value = Aguil.Core.AlValues.AlValue;
 
@@ -13,61 +10,29 @@ public static class PhlowBuilder
 {
     public static AlPhlowView Build(FSharpMap<Value, Value> fields)
     {
-        var title = "View error";
-        BigInteger priority = 100;
-        try
+        var title = AlValues.text("title", fields);
+        var priority = fields.TryGetValue(Value.NewAlAtom("priority"), out var p) && p is Value.AlInteger integer
+            ? integer.Item
+            : throw new ArgumentException("Expected an integer view priority");
+        var view = AlValues.text("view", fields) switch
         {
-            title = AlValues.text("title", fields);
-            priority = fields.TryGetValue(Value.NewAlAtom("priority"), out var p) && p is Value.AlInteger integer
-                ? integer.Item
-                : throw new ArgumentException("Expected an integer view priority");
-            var grammar = fields.TryGetValue(Value.NewAlAtom("grammar"), out var g) && g is Value.AlText source
-                ? source.Item
-                : null;
-            var view = AlValues.text("view", fields) switch
-            {
-                "aguil_native" => CSharpForward.Resolve(AlValues.text("target", fields)),
-                "text" => new TextView(AlValues.text("text", fields), grammar),
-                "xaml" => new XamlView(AlValues.text("content", fields)),
-                "columned_list" => new ColumnedList(
-                    ((Value.AlList)fields[Value.NewAlAtom("items")]).Item,
-                    AlValues.maps(fields[Value.NewAlAtom("columns")]).Select(Column),
-                    fields.TryGetValue(Value.NewAlAtom("row_spacing"), out var spacing) &&
-                    spacing is Value.AlInteger rowSpacing
-                        ? (double)rowSpacing.Item
-                        : 0),
-                "inspector" => new EmbeddedInspector(AlValues.maps(fields[Value.NewAlAtom("views")])),
-                "aguil_raw" => new TextView(fields[Value.NewAlAtom("target")].ToString()),
-                var kind => throw new NotSupportedException($"Unknown view: {kind}")
-            };
-            view.Title = title;
-            view.Priority = priority;
-            if (fields.TryGetValue(Value.NewAlAtom("target"), out var target))
-                InspectionTarget.SetTarget(view.Content, target);
-            if (fields.TryGetValue(Value.NewAlAtom("height"), out var height))
-                view.Content.Height = height switch
-                {
-                    Value.AlInteger size => (double)size.Item,
-                    Value.AlFloat number => number.Item,
-                    _ => double.NaN
-                };
-            return view;
-        }
-        catch (Exception error)
-        {
-            return new TextView(error.Message) { Title = title, Priority = priority };
-        }
-    }
-
-    private static TableViewColumn Column(FSharpMap<Value, Value> fields)
-    {
-        return new TableViewColumn
-        {
-            Header = fields.TryGetValue(Value.NewAlAtom("title"), out var title) && title is Value.AlText text
-                ? text.Item
-                : null,
-            CellTemplate = ElementBuilder.Template(fields),
-            Width = GridLength.Auto
+            "aguil_native" => CSharpForward.Resolve(AlValues.text("target", fields)),
+            "xaml" => new AlPhlowView(XamlView.Load(AlValues.text("content", fields),
+                fields.TryGetValue(Value.NewAlAtom("data"), out var data) ? data : null)),
+            "inspector" => new AlPhlowView(new Inspector { Views = AlValues.maps(fields[Value.NewAlAtom("views")]) }),
+            var kind => throw new NotSupportedException($"Unknown view: {kind}")
         };
+        view.Title = title;
+        view.Priority = priority;
+        if (fields.TryGetValue(Value.NewAlAtom("target"), out var target))
+            InspectionTarget.SetTarget(view.Content, target);
+        if (fields.TryGetValue(Value.NewAlAtom("height"), out var height))
+            view.Content.Height = height switch
+            {
+                Value.AlInteger size => (double)size.Item,
+                Value.AlFloat number => number.Item,
+                _ => double.NaN
+            };
+        return view;
     }
 }

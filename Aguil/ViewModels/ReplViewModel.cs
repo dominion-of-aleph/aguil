@@ -90,8 +90,8 @@ public partial class ReplViewModel : ObservableObject
         // Replace with a real sum type logic
         try
         {
-            var (result, views) = await _al.QueryAlViews(source, null);
-            entry = new ReplSuccess(source, new Answer(new Evaluation.Solution(result, views)), _al);
+            var solution = await _al.QueryAlViews(source, null);
+            entry = new ReplSuccess(source, new Answer(solution), _al);
         }
         catch (Exception e)
         {

@@ -42,17 +42,16 @@ type CommandLogListener
 
         let mutable disposed = false
 
-        {
-            new IDisposable with
-                member _.Dispose() =
-                    lock gate (fun () ->
-                        if not disposed then
-                            disposed <- true
-                            let count, cancellation = branches[branch]
+        { new IDisposable with
+            member _.Dispose() =
+                lock gate (fun () ->
+                    if not disposed then
+                        disposed <- true
+                        let count, cancellation = branches[branch]
 
-                            if count = 1 then
-                                branches <- branches.Remove branch
-                                cancellation.Cancel()
-                            else
-                                branches <- branches.Add(branch, (count - 1, cancellation)))
+                        if count = 1 then
+                            branches <- branches.Remove branch
+                            cancellation.Cancel()
+                        else
+                            branches <- branches.Add(branch, (count - 1, cancellation)))
         }

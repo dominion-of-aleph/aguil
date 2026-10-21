@@ -1,13 +1,13 @@
 using System;
 using System.Linq;
 using Aguil.Core.MCP;
-using Aguil.Editor;
 using Aguil.Phlow;
 using Aguil.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
+using Avalonia.Logging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Value = Aguil.Core.AlValues.AlValue;
@@ -79,16 +79,16 @@ public partial class Repl : UserControl
             {
                 e.Handled = true;
                 var inspection = vm.OpenInspection(target, Inspector.GetInspection(source));
-                var pane = new Pane { Header = inspection.Target, Content = new TextBlock { Text = "Loading…" } };
-                Inspector.SetInspection(pane, inspection);
-                Flow.Open(pane, parent);
                 try
                 {
-                    pane.Content = new Inspector { Views = await al.Inspect(target, inspection.Branch) };
+                    var content = new Inspector { Views = await al.Inspect(target, inspection.Branch) };
+                    var pane = new Pane { Header = inspection.Target, Content = content };
+                    Inspector.SetInspection(pane, inspection);
+                    Flow.Open(pane, parent);
                 }
                 catch (Exception error)
                 {
-                    pane.Content = ReadOnlyText.Create(error.Message);
+                    Logger.TryGet(LogEventLevel.Error, "AL")?.Log(this, "Inspection failed: {Error}", error);
                 }
             }
         }, RoutingStrategies.Tunnel);
