@@ -3,7 +3,6 @@ using System.Windows.Input;
 using Aguil.Core;
 using Aguil.Core.MCP;
 using Aguil.Phlow;
-using Aguil.Views;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
@@ -41,7 +40,7 @@ public sealed class BindExtension : ICommand
     {
         try
         {
-            await Client.RunSlot(ObjectId, Path, Inspector.GetInspection(_control!)?.Branch!);
+            await Client.RunSlot(ObjectId, Path, Context.BranchFor(_control!)!);
         }
         catch (Exception error)
         {
@@ -77,7 +76,7 @@ public sealed class BindExtension : ICommand
         {
             try
             {
-                var reference = await Observations.Open(ObjectId, Path, Inspector.GetInspection(control)?.Branch!);
+                var reference = await Observations.Open(ObjectId, Path, Context.BranchFor(control)!);
                 if (control.IsLoaded) source.Reference = reference;
             }
             catch (Exception error)
@@ -98,7 +97,7 @@ public sealed class BindExtension : ICommand
             if (host.Content is not null) return;
             try
             {
-                var branch = Inspector.GetInspection(owner)?.Branch ?? await Client.HeadBranch();
+                var branch = Context.BranchFor(owner) ?? await Client.HeadBranch();
                 host.Content = XamlView.Load(await Client.Xaml(item, branch));
             }
             catch (Exception error)

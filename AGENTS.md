@@ -69,6 +69,13 @@ Repeated identical `changes` assignments remain distinct within a batch; snapsho
 prevent reapplying old deltas. Slot writes reread authoritative state, without acknowledgement cursors.
 Cache references/data, never visual controls: each list view renders its own item controls.
 
+The outer workspace observes AL's `wm` through `AlMutableObject.Watch`. AL's `layout_changed`
+publishes `changes` together with the new layout, extent, and workspace XAML. Preserve every
+assignment in order; snapshots restore membership without replaying the last event. Layouts
+supply the workspace XAML through bricks in `views`. The native host retains unchanged content
+controls, replaces changed content, and releases its subscription on close. `Bindings.Context`
+carries the workspace branch to generated controls independently of inspection provenance.
+
 `InspectionTarget` is an inheritable attached property on controls, not the inspector tool.
 It carries the value to inspect. Individual list items/cells can have their own targets;
 a view need not have one. Rebinding must replace or clear a stale target.

@@ -10,6 +10,8 @@ open System.Threading.Tasks
 open Aguil.Core.AlValues
 open Aguil.Core.MCP
 
+type ObjectChange = { Value: AlValue; Writes: Map<AlValue, AlValue> list }
+
 /// One observed object; it owns the slots its views bind to.
 type AlMutableObject
     internal
@@ -24,6 +26,7 @@ type AlMutableObject
     let mutable cursor = -1L
     let mutable cleanup = ignore
     let slots = Dictionary<AlValue, AlMutableObjectSlot>()
+    let updates = Event<ObjectChange>()
 
     member _.Identifier = AlAtom objectId
     member _.ObjectId = objectId
@@ -34,6 +37,16 @@ type AlMutableObject
 
     abstract Changed: Map<AlValue, AlValue> list -> unit
     default _.Changed _ = ()
+
+    member self.Watch(receive: Action<ObjectChange>) =
+        let subscription = updates.Publish.Subscribe receive.Invoke
+
+        try
+            receive.Invoke { Value = self.Current; Writes = [] }
+            subscription
+        with _ ->
+            subscription.Dispose()
+            reraise ()
 
     member self.Slot(path: string) =
         match slots.TryGetValue(AlAtom path) with
@@ -52,6 +65,8 @@ type AlMutableObject
         for KeyValue(key, slot) in Seq.toArray slots do
             if written |> List.exists (Map.containsKey key) then
                 slot.Apply()
+
+        updates.Trigger { Value = AlMap fields; Writes = writes }
 
     member self.Apply(snapshot: ObjectSnapshot) =
         if snapshot.Cursor >= cursor then

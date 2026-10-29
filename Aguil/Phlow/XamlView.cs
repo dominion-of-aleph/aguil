@@ -14,12 +14,13 @@ public static class XamlView
                               xmlns:al="using:Aguil.Bindings"
                               xmlns:phlow="using:Aguil.Phlow"
                               xmlns:editor="using:Aguil.Editor"
+                              xmlns:keys="clr-namespace:Aguil.Editor;assembly=Aguil.Editor"
                               xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit">
                   <ContentControl.Styles>
                       <Style Selector="ae|TextEditor">
                           <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
                           <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
-                          <Setter Property="editor:Code.Keymap" Value="{x:Static editor:Keymaps.defaults}" />
+                          <Setter Property="editor:Code.Keymap" Value="{x:Static keys:Keymaps.defaults}" />
                       </Style>
                   </ContentControl.Styles>
                   {{content}}

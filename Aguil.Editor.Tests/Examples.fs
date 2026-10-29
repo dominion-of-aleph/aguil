@@ -161,7 +161,7 @@ let commandListener () =
 
 type BindingAddress = { ObjectId: string; Branch: string; Path: string }
 
-/// A durable object with editable text, a constrained choice and a captured action.
+/// A durable object with editable text and a constrained choice.
 let bindingObject (al: MCP.AlMcpClient) : Task<BindingAddress> =
     task {
         let! result =
@@ -170,11 +170,8 @@ let bindingObject (al: MCP.AlMcpClient) : Task<BindingAddress> =
                 @aguil_xaml_example
                 #{super => object,
                   ivars => [#{name => text, type => string},
-                            #{name => choice, domain => ["foo", "bar"]},
-                            #{name => action}]}.
+                            #{name => choice, domain => ["foo", "bar"]}]}.
                 new aguil_xaml_example #{text => "foo", choice => "foo"} Object.
-                lambda [] Action {set_slot Object text "clicked"},
-                set_slot Object action Action.
                 """,
                 null
             )
@@ -281,6 +278,43 @@ let alQuery (client: MCP.AlMcpClient) branch source bindings =
         return result
     }
 
+/// Times the first visible REPL and the cost of a redundant viewport request.
+let startupTimings () =
+    onUiAsync (fun () ->
+        task {
+            let elapsed = Diagnostics.Stopwatch.StartNew()
+            let timings = ResizeArray<string * TimeSpan>()
+
+            let mark phase =
+                timings.Add(phase, elapsed.Elapsed)
+                elapsed.Restart()
+
+            let client = alClient ()
+            let size = Size(1100., 780.)
+            use! workspace = WindowManager.Create(client, size)
+            mark "Create workspace"
+            let repl = Repl()
+            mark "Construct REPL"
+
+            let window =
+                Window(Content = workspace.Content, Width = size.Width, Height = size.Height)
+
+            window.Show()
+
+            try
+                do! workspace.Spawn(CSharpForward(repl, Title = "REPL"))
+                do! waitFor (fun () -> repl.IsLoaded)
+                mark "Spawn and display REPL"
+                do! workspace.ViewPortChanged size
+                do! workspace.Pending
+                mark "Repeat viewport"
+                let! inputs = client.PreviousInputs()
+                mark $"Read {inputs.Length} prior inputs"
+                return List.ofSeq timings
+            finally
+                window.Close()
+        })
+
 let observedList (client: MCP.AlMcpClient) (cache: ObservationCache) branch items =
     task {
         let! result =
@@ -384,42 +418,6 @@ let editText (example: TextBinding) text =
 
         return stored
     }
-
-/// Open native content, then replace it with an AL-authored Phlow view.
-let windowSpawns () =
-    onUiAsync (fun () ->
-        task {
-            let al = alClient ()
-            let! manager = WindowManager.Create(al, Size(800.0, 600.0))
-            let native = TextBlock(Text = "Native content")
-            do! manager.Spawn(CSharpForward(native, Title = "Native"))
-            let first = Seq.exactlyOne manager.Windows
-
-            let! content =
-                al.QueryAl(
-                    "new phlow_text #{text => \"From AL\", title => \"AL content\"} Content.",
-                    null
-                )
-
-            let phlow = (content.Bindings.Values |> List.find (fun b -> b.Symbol = "Content")).Value
-            do! manager.Spawn(phlow, first)
-            return manager, first, native
-        })
-
-let windowResizes () =
-    onUiAsync (fun () ->
-        task {
-            let al = alClient ()
-            let! manager = WindowManager.Create(al, Size(800.0, 600.0))
-            do! manager.ViewPortChanged(Size(1200.0, 900.0))
-            let native = TextBlock(Text = "Native content")
-            do! manager.Spawn(CSharpForward(native, Title = "Native"))
-            let first = Seq.exactlyOne manager.Windows
-            let initial = first.Rect
-            do! manager.ViewPortChanged(Size(640.0, 480.0))
-            do! manager.ViewPortChanged(Size(640.0, 480.0))
-            return manager, first, native, initial
-        })
 
 /// The AvaloniaEdit commands a keymap can name.
 let editorCommandNames () = onUi (fun () -> Keymaps.editorCommands.Keys |> Seq.sort |> List.ofSeq)
@@ -558,13 +556,6 @@ let evaluation bindings =
         HasPotentialSolution = false
     }
 
-/// Ask AL for the views of supplied bindings; the keys remain their display names.
-let viewsFor bindings = (alClient ()).AlViewsFromQuery(evaluation bindings, null).Result
-
-/// Enumerate a map method through AL before inspecting its returned values.
-let mapMethod () =
-    (alClient ()).QueryAl("= X #{}. class X Class. method Class Name Id.", null).Result
-
 /// Parse a printed value through the same AL endpoint used by inspection.
 let roundTrip value =
     let result =
@@ -598,9 +589,6 @@ let quotedValues () =
             AlMap(Map.ofList [ AlAtom name, AlText name ])
     ]
 
-/// A map containing two references to the same unbound variable.
-let partialMap name = AlMap(Map.ofList [ AlAtom "slot", AlList [ AlVar name; AlVar name ] ])
-
 /// A retained source row in the history query's wire format.
 let historyRow tx kind tag source =
     let origin =
@@ -623,103 +611,4 @@ let historyRows () = [
 let historyInputs () = evaluation [ "Inputs", AlList(historyRows ()) ] |> MCP.History.fromQuery
 
 /// An answer owns its inspection identity independently of its position in a result list.
-let answer bindings =
-    Answer(
-        {
-            Result = evaluation bindings
-            Views = Map.ofList [ for name, _ in bindings -> name, [] ]
-        }
-    )
-
-/// An ordinary control framed as a pane; callers can replace its content.
-let pane title = Pane(Header = title, Content = TextBox(Text = title))
-
-/// A column owns its panes and can be populated before joining a workspace.
-let paneColumn titles =
-    let column = PaneColumn()
-
-    for title in titles do
-        column.Panes.Add(pane title)
-
-    column
-
-/// A window to show and extend on the UI thread, with one full-width pane.
-let paneWindow () =
-    let host = PaneHost()
-    host.Columns.Add(paneColumn [ "A" ])
-    Window(Content = host, Width = 1000, Height = 600)
-
-/// Open another ordinary control to the right of its source.
-let openPane (host: PaneHost) source title =
-    let child = pane title
-    host.Open(child, source)
-    child
-
-/// Two openings from A, each with another pane opened from it.
-let paneFork () =
-    let window = paneWindow ()
-    let host = window.Content :?> PaneHost
-    let a = Seq.head host.Panes
-    let b = openPane host a "B"
-    let x = openPane host a "X"
-    openPane host b "C" |> ignore
-    openPane host x "Y" |> ignore
-    window
-
-/// A pane's visible rectangle, independent of how the host arranges it.
-let paneRect (window: Window) (pane: Pane) =
-    Dispatcher.UIThread.RunJobs()
-    Rect(pane.TranslatePoint(Avalonia.Point(), window).Value, pane.Bounds.Size)
-
-/// Exercise a control through the window's normal pointer route.
-let click (window: Window) (control: Control) button =
-    Dispatcher.UIThread.RunJobs()
-
-    let at =
-        control
-            .TranslatePoint(
-                Avalonia.Point(control.Bounds.Width / 2.0, control.Bounds.Height / 2.0),
-                window
-            )
-            .Value
-
-    window.MouseDown(at, button, RawInputModifiers.None)
-    window.MouseUp(at, button, RawInputModifiers.None)
-    Dispatcher.UIThread.RunJobs()
-
-/// Click an action by its visible tooltip, independent of its position or button type.
-let clickAction window (control: Control) tooltip =
-    let button =
-        control.GetVisualDescendants()
-        |> Seq.choose (function
-            | :? Button as b -> Some b
-            | _ -> None)
-        |> Seq.find (fun b -> ToolTip.GetTip(b) = box tooltip)
-
-    click window button MouseButton.Left
-
-/// A REPL with a supplied answer; no evaluation is needed to explore its inline inspector.
-let replAnswer bindings =
-    let repl = Repl()
-    let window = Avalonia.Controls.Window(Content = repl, Width = 1100, Height = 780)
-    let model = repl.DataContext :?> ReplViewModel
-
-    model.History.Add(ReplSuccess("example", answer bindings, alClient ()))
-    window
-
-/// Middle-click a displayed target through the same inherited marker as the REPL.
-let inspectTarget (window: Window) value =
-    Dispatcher.UIThread.RunJobs()
-
-    let control =
-        window.GetVisualDescendants()
-        |> Seq.choose (function
-            | :? Control as c -> Some c
-            | _ -> None)
-        |> Seq.find (fun c ->
-            c.IsEffectivelyVisible
-            && c.Bounds.Width > 0
-            && c.Bounds.Height > 0
-            && InspectionTarget.GetTarget(c) = box value)
-
-    click window control MouseButton.Middle
+let answer bindings = Answer({ Result = evaluation bindings; Views = [] })

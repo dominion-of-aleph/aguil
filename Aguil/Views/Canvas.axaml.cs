@@ -4,11 +4,13 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Aguil.Bindings;
 using Aguil.Core;
 using Aguil.Core.MCP;
 using Aguil.Phlow;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Logging;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Aguil.Views;
@@ -27,7 +29,8 @@ public partial class Canvas : Avalonia.Controls.Window
         UpdateLayout();
 
         var al = new AlMcpClient();
-        var wm = await WindowManager.Create(al, Scroll.Viewport);
+        var viewport = Scroll.Viewport;
+        var wm = await WindowManager.Create(al, viewport);
         DataContext = wm;
         await wm.Spawn(new CSharpForward(new Repl()) { Title = "REPL" });
 
@@ -41,24 +44,59 @@ public partial class Canvas : Avalonia.Controls.Window
             if (change.Property == ScrollViewer.ViewportProperty)
                 sizes.Writer.TryWrite(Scroll.Viewport);
         };
-        Closed += (_, _) => sizes.Writer.TryComplete();
+        Closed += (_, _) =>
+        {
+            sizes.Writer.TryComplete();
+            wm.Dispose();
+        };
         sizes.Writer.TryWrite(Scroll.Viewport);
 
         await foreach (var size in sizes.Reader.ReadAllAsync())
+        {
+            if (size == viewport) continue;
             await wm.ViewPortChanged(size);
+            viewport = size;
+        }
     }
 }
 
-public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm, string branch) : ObservableObject
+public sealed class WindowManager : ObservableObject, IDisposable
 {
+    private readonly AlMutableObject _reference;
+    private Control? _content;
+    private bool _disposed;
     private Size _extent;
+    private IDisposable? _watch;
+    private string? _xaml;
+
+    private WindowManager(AlMutableObject reference)
+    {
+        _reference = reference;
+    }
+
+    public AlValues.AlValue Id => _reference.Identifier;
+    public string Branch => _reference.Branch;
+    public Task Pending { get; private set; } = Task.CompletedTask;
 
     public ObservableCollection<Window> Windows { get; } = [];
+
+    public Control? Content
+    {
+        get => _content;
+        private set => SetProperty(ref _content, value);
+    }
 
     public Size Extent
     {
         get => _extent;
         private set => SetProperty(ref _extent, value);
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _watch?.Dispose();
+        _watch = null;
     }
 
     public static async Task<WindowManager> Create(AlMcpClient al, Size extent)
@@ -73,138 +111,167 @@ public sealed class WindowManager(AlMcpClient al, AlValues.AlValue wm, string br
               """), null);
         var wm = Evaluation.binding("Wm", result);
         await al.ReleaseContext(result.Context);
-        return new WindowManager(al, wm, result.Branch);
+        return await Attach(al, wm, result.Branch);
+    }
+
+    public static async Task<WindowManager> Attach(AlMcpClient al, AlValues.AlValue wm, string branch)
+    {
+        var reference = await new ObservationCache(al).Open(((AlValues.AlValue.AlAtom)wm).Item, branch);
+        var manager = new WindowManager(reference);
+        manager._watch = reference.Watch(manager.Changed);
+        try
+        {
+            await manager.Pending;
+            return manager;
+        }
+        catch
+        {
+            manager.Dispose();
+            throw;
+        }
     }
 
     public async Task Spawn(AlPhlowView content, Window? on = null)
     {
-        await Spawn(await CSharpForward.ToAl(content, al, branch), on);
+        await Spawn(await CSharpForward.ToAl(content, _reference.Client, Branch), on);
     }
 
     public async Task Spawn(AlValues.AlValue content, Window? on = null)
     {
         var source = on?.Id ?? AlValues.AlValue.NewAlAtom("nil");
-        var result = await al.QueryAlWith(
-            "new_window Wm #{on => On, content => Content} Changed Removed. get_slots Wm #{total_extent => TotalExtent}.",
-            branch,
-            new Dictionary<string, AlValues.AlValue> { ["Wm"] = wm, ["On"] = source, ["Content"] = content });
-        try
-        {
-            await Show(result);
-        }
-        finally
-        {
-            await al.ReleaseContext(result.Context);
-        }
+        var result = await _reference.Client.QueryAlWith(
+            "new_window Wm #{on => On, content => Content} _ _.",
+            Branch,
+            new Dictionary<string, AlValues.AlValue> { ["Wm"] = Id, ["On"] = source, ["Content"] = content });
+        await _reference.Client.ReleaseContext(result.Context);
     }
 
     public async Task ViewPortChanged(Size size)
     {
-        var result = await al.QueryAlWith(FormattableString.Invariant(
+        var result = await _reference.Client.QueryAlWith(FormattableString.Invariant(
             $$"""
               new point #{x => {{size.Width}}, y => {{size.Height}}} Visible.
-              viewport_changed Wm Visible Changed Removed.
-              get_slots Wm #{total_extent => TotalExtent}.
-              """), branch, new Dictionary<string, AlValues.AlValue> { ["Wm"] = wm });
+              viewport_changed Wm Visible _ _.
+              """), Branch, new Dictionary<string, AlValues.AlValue> { ["Wm"] = Id });
+        await _reference.Client.ReleaseContext(result.Context);
+    }
+
+    private void Changed(ObjectChange change)
+    {
+        Pending = ApplyAfter(Pending, change);
+        _ = Report(Pending);
+    }
+
+    private async Task ApplyAfter(Task previous, ObjectChange change)
+    {
+        var recover = false;
         try
         {
-            await Show(result);
+            await previous;
         }
-        finally
+        catch
         {
-            await al.ReleaseContext(result.Context);
+            recover = true;
         }
+
+        IEnumerable<Workspace.Update> updates = recover
+            ? [Workspace.snapshot(change.Value)]
+            : Workspace.changes(change);
+        foreach (var update in updates) await Apply(update);
     }
 
-    public void Delete(Window window)
+    private async Task Apply(Workspace.Update update)
     {
-        // Call Layout, through WM
-    }
+        if (_disposed) return;
 
-    public void Focus(Window window)
-    {
-        // Call WM
-    }
+        var prepared = new List<(Workspace.Placement Placement, Window? Existing, AlPhlowView? View)>();
+        foreach (var placement in update.Changed)
+        {
+            var existing = Windows.FirstOrDefault(window => window.Id.Equals(placement.Id));
+            var view = existing is null || !Equals(existing.Description, placement.Content)
+                ? await ViewFor(placement.Content)
+                : null;
+            prepared.Add((placement, existing, view));
+        }
 
-    public void Reveal(Window window)
-    {
-        // Bring into view, but not focus
-    }
+        var content = _xaml == update.Xaml ? Content : XamlView.Load(update.Xaml, this);
+        if (_disposed) return;
+        if (content is not null) Context.SetBranch(content, Branch);
 
-    public void Move(Window window)
-    {
-        // Direction needed as well
-    }
-
-    public void Resize(Window window, Size size)
-    {
-        // Go into the WM
-    }
-
-    private async Task Show(Evaluation.EvaluationContext result)
-    {
-        var removedIds = ((AlValues.AlValue.AlList)Evaluation.binding("Removed", result)).Item
-            .Select(window => AlValues.field("id", window)).ToHashSet();
-        var removed = Windows.Where(window => removedIds.Contains(window.Id)).ToArray();
-
-        foreach (var window in removed)
+        var removed = update.Removed.ToHashSet();
+        var retained = update.Changed.Select(window => window.Id).ToHashSet();
+        foreach (var window in Windows.Where(window => removed.Contains(window.Id) ||
+                                                       (update.Reset && !retained.Contains(window.Id))).ToArray())
             Windows.Remove(window);
 
-        var changed = ((AlValues.AlValue.AlList)Evaluation.binding("Changed", result)).Item;
-        foreach (var change in changed)
+        foreach (var (placement, existing, view) in prepared)
         {
-            var id = AlValues.field("id", change);
-            var existing = Windows.FirstOrDefault(window => window.Id.Equals(id));
-            var rect = WindowRect(change);
-
-            if (existing is not null)
-            {
-                existing.Rect = rect;
-            }
-            else
-            {
-                var content = AlValues.field("content", change);
-                var view = await ViewFor(content);
-                Windows.Add(new Window(view.Title, view.Content, rect, id));
-            }
+            var window = existing ?? new Window(placement.Id);
+            window.Update(placement, view);
+            if (existing is null) Windows.Add(window);
         }
 
-        Extent = WindowSize(Evaluation.binding("TotalExtent", result));
+        Extent = new Size(update.Width, update.Height);
+        _xaml = update.Xaml;
+        Content = content;
+    }
+
+    private async Task Report(Task pending)
+    {
+        try
+        {
+            await pending;
+        }
+        catch (Exception error)
+        {
+            Logger.TryGet(LogEventLevel.Error, "AL")?.Log(this, "Workspace update failed: {Error}", error);
+        }
     }
 
     private async Task<AlPhlowView> ViewFor(AlValues.AlValue content)
     {
-        var result = await al.QueryAlWith("to_map Content Description.", branch,
+        var result = await _reference.Client.QueryAlWith("to_map Content Description.", Branch,
             new Dictionary<string, AlValues.AlValue> { ["Content"] = content });
         var description = (AlValues.AlValue.AlMap)Evaluation.binding("Description", result);
-        await al.ReleaseContext(result.Context);
-        return PhlowBuilder.Build(description.Item);
-    }
-
-    private static Size WindowSize(AlValues.AlValue extent)
-    {
-        return new Size(AlValues.number(AlValues.field("x", extent)), AlValues.number(AlValues.field("y", extent)));
-    }
-
-    private static Rect WindowRect(AlValues.AlValue window)
-    {
-        var position = AlValues.field("position", window);
-        return new Rect(
-            new Point(AlValues.number(AlValues.field("x", position)), AlValues.number(AlValues.field("y", position))),
-            WindowSize(AlValues.field("extent", window)));
+        await _reference.Client.ReleaseContext(result.Context);
+        var view = PhlowBuilder.Build(description.Item);
+        Context.SetBranch(view.Content, Branch);
+        return view;
     }
 }
 
-public sealed class Window(string title, Control content, Rect rect, AlValues.AlValue id) : ObservableObject
+public sealed class Window(AlValues.AlValue id) : ObservableObject
 {
-    private Rect _rect = rect;
-    public string Title { get; } = title;
-    public Control Content { get; } = content;
+    private Control? _content;
+    private Rect _rect;
+    private string _title = "";
     public AlValues.AlValue Id { get; } = id;
+    internal AlValues.AlValue? Description { get; private set; }
+
+    public string Title
+    {
+        get => _title;
+        private set => SetProperty(ref _title, value);
+    }
+
+    public Control? Content
+    {
+        get => _content;
+        private set => SetProperty(ref _content, value);
+    }
 
     public Rect Rect
     {
         get => _rect;
-        set => SetProperty(ref _rect, value);
+        private set => SetProperty(ref _rect, value);
+    }
+
+    internal void Update(Workspace.Placement placement, AlPhlowView? view)
+    {
+        Rect = new Rect(placement.X, placement.Y, placement.Width, placement.Height);
+        Description = placement.Content;
+        if (view is null) return;
+        Title = view.Title;
+        Content = view.Content;
     }
 }

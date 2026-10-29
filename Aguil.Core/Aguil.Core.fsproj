@@ -16,6 +16,7 @@
         <Compile Include="MCP/Client.fs"/>
         <Compile Include="AlReference.fs"/>
         <Compile Include="ObservationCache.fs"/>
+        <Compile Include="Workspace.fs"/>
     </ItemGroup>
 
 </Project>
