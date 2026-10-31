@@ -315,6 +315,214 @@ let startupTimings () =
                 window.Close()
         })
 
+/// Discovers metadata, then materializes one chosen AL view.
+let lazyViewDescriptions () =
+    task {
+        let client = alClient ()
+
+        let! result =
+            alQuery
+                client
+                null
+                "new phlow_text #{title => \"Lazy example\", text => \"hello\", priority => 1} Target."
+                []
+
+        let! solution = client.DescribeSolution result
+        let bindingView = solution.Views |> List.find (fun fields -> text "view" fields = "inspect")
+        let! inspector = client.ResolveView bindingView
+        let descriptions = maps inspector[AlAtom "views"]
+        let selected = descriptions |> List.find (fun fields -> text "title" fields = "Lazy example")
+        let! rendered = client.ResolveView selected
+
+        let! empty = alQuery client result.Branch "new phlow #{title => \"Empty example\"} Target." []
+        let! available = client.Inspect(binding "Target" empty, result.Branch)
+
+        return
+            text "view" solution.Views.Head,
+            text "view" bindingView,
+            text "view" selected,
+            not (selected.ContainsKey(AlAtom "content")),
+            text "view" rendered,
+            (text "content" rendered).Contains("ae:TextEditor"),
+            not (available |> List.exists (fun fields -> text "title" fields = "Empty example"))
+    }
+
+/// Only selected tabs load; late completion and revisiting preserve each tab's editor.
+let lazyTabs () =
+    onUiAsync (fun () ->
+        task {
+            let requests = ResizeArray<string>()
+            let reply = TaskCompletionSource<Control>()
+            let first = TextBox(Text = "draft")
+            let second = TextBox(Text = "second")
+
+            let firstHost =
+                DeferredContent(fun () ->
+                    requests.Add "first"
+                    Task.FromResult<Control>(first))
+
+            let secondHost =
+                DeferredContent(fun () ->
+                    requests.Add "second"
+                    reply.Task)
+
+            let tabs =
+                Inspector(
+                    [
+                        AlPhlowView(firstHost, Title = "First", Priority = 1I)
+                        AlPhlowView(secondHost, Title = "Second", Priority = 2I)
+                    ]
+                )
+
+            let before = List.ofSeq requests
+            let window = Window(Content = tabs, Width = 400., Height = 300.)
+            window.Show()
+
+            try
+                do! waitFor (fun () -> firstHost.Content = first)
+                let initial = List.ofSeq requests
+                first.Text <- "edited"
+                tabs.SelectedIndex <- 1
+                do! waitFor (fun () -> requests.Count = 2)
+                tabs.SelectedIndex <- 0
+                reply.SetResult second
+                do! waitFor (fun () -> secondHost.Content = second)
+                let stayed = tabs.SelectedIndex = 0
+                tabs.SelectedIndex <- 1
+                do! waitFor (fun () -> second.IsLoaded)
+                tabs.SelectedIndex <- 0
+                do! waitFor (fun () -> first.IsLoaded)
+
+                return
+                    before,
+                    initial,
+                    List.ofSeq requests,
+                    stayed,
+                    first.Text,
+                    firstHost.Content = first
+            finally
+                window.Close()
+        })
+
+let nestedViewBranches () =
+    onUiAsync (fun () ->
+        task {
+            let child =
+                Map.ofList [
+                    AlAtom "view", AlText "xaml"
+                    AlAtom "title", AlText "Child"
+                    AlAtom "priority", AlInteger 1I
+                    AlAtom "content", AlText "<TextBlock Text=\"Child\"/>"
+                ]
+
+            let parent =
+                Map.ofList [
+                    AlAtom "view", AlText "inspector"
+                    AlAtom "title", AlText "Parent"
+                    AlAtom "priority", AlInteger 1I
+                    AlAtom "branch", AlText "parent"
+                    AlAtom "views",
+                    AlList [ AlMap child; AlMap(child.Add(AlAtom "branch", AlText "child")) ]
+                ]
+
+            let host = (PhlowBuilder.Build parent).Content :?> DeferredContent
+            let! control = host.Load()
+            let inspector = control :?> Inspector
+
+            return
+                inspector.ItemsSource
+                |> Seq.cast<AlPhlowView>
+                |> Seq.map (fun view -> Aguil.Bindings.Context.GetBranch view.Content)
+                |> Seq.toList
+        })
+
+let classEditor branch target =
+    task {
+        let! result =
+            alQuery
+                (alClient ())
+                branch
+                "new brick_class_methods #{target => Target} Brick. to_xaml Brick Xaml."
+                [ "Target", target ]
+
+        let xaml =
+            match binding "Xaml" result with
+            | AlText text -> text
+            | value -> failwithf "Expected XAML: %A" value
+
+        let content = XamlView.Load(xaml)
+        Aguil.Bindings.Context.SetBranch(content, result.Branch)
+        return result, content
+    }
+
+let classEditorFilter branch target =
+    onUiAsync (fun () ->
+        task {
+            let! result, content = classEditor branch target
+            let window = Window(Content = content, Width = 600., Height = 500.)
+            window.Show()
+
+            try
+                let combo =
+                    content.GetVisualDescendants()
+                    |> Seq.pick (function
+                        | :? ComboBox as c -> Some c
+                        | _ -> None)
+
+                let table =
+                    content.GetVisualDescendants()
+                    |> Seq.pick (function
+                        | :? TableView as t -> Some t
+                        | _ -> None)
+
+                do! waitFor (fun () -> combo.SelectedIndex = 0 && table.Items.Count > 0)
+                let before = table.Items.Count
+                combo.SelectedIndex <- 1
+                do! waitFor (fun () -> table.Items.Count > before)
+
+                let editors () =
+                    content.GetVisualDescendants()
+                    |> Seq.choose (function
+                        | :? TextEditor as e -> Some e
+                        | _ -> None)
+                    |> Seq.toList
+
+                do! waitFor (fun () -> editors () |> List.exists (fun e -> e.Text <> ""))
+
+                let! state =
+                    alQuery
+                        (alClient ())
+                        result.Branch
+                        "get Brick filters [Filter]. get Filter index Index."
+                        [ "Brick", binding "Brick" result ]
+
+                return
+                    before,
+                    table.Items.Count,
+                    binding "Index" state,
+                    editors ()
+                    |> List.map (fun e -> e.Text.Split('\n')[0], InspectionTarget.GetTarget e)
+            finally
+                window.Close()
+        })
+
+/// Opening an inspection can await its selected tab before displaying the pane.
+let selectedViewFailure () =
+    onUiAsync (fun () ->
+        task {
+            let content =
+                DeferredContent(fun () ->
+                    Task.FromException<Control>(InvalidOperationException "broken view"))
+
+            let inspector = Inspector([ AlPhlowView(content) ])
+
+            try
+                do! inspector.LoadSelected()
+                return "unexpected success"
+            with error ->
+                return error.Message
+        })
+
 let observedList (client: MCP.AlMcpClient) (cache: ObservationCache) branch items =
     task {
         let! result =
@@ -384,8 +592,9 @@ let textBinding (source: ObservationExample) propertyElement =
                 ]
             )
 
+        let! content = (view.Content :?> DeferredContent).Load()
         let window = Window(Content = view.Content)
-        let textbox = (view.Content :?> ContentControl).Content :?> TextBox
+        let textbox = (content :?> ContentControl).Content :?> TextBox
         Inspector.SetInspection(window, Inspection(AlAtom address.ObjectId, None, address.Branch))
         window.Show()
 
@@ -469,14 +678,14 @@ let lineKeys () =
 type CommandLog() =
     member val Runs: string list = [] with get, set
 
-    member private this.Logging name =
-        { new ICommand with
+    member private this.Logging name = {
+        new ICommand with
             member _.CanExecute _ = true
             member _.Execute _ = this.Runs <- this.Runs @ [ name ]
 
             [<CLIEvent>]
             member _.CanExecuteChanged = Event<EventHandler, EventArgs>().Publish
-        }
+    }
 
     member this.PreviousInputCommand = this.Logging "PreviousInput"
     member this.CancelCommand = this.Logging "Cancel"

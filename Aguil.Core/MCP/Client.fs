@@ -270,7 +270,7 @@ type AlMcpClient(url: string) as self =
         task {
             let! result =
                 self.QueryAlWith(
-                    "new Class Fields View, to_map View Map.",
+                    "new Class Fields Phlow, " + view_summary + ".",
                     branch,
                     Map.ofList [ "Class", AlAtom className; "Fields", AlMap fields ]
                 )
@@ -280,13 +280,12 @@ type AlMcpClient(url: string) as self =
             return
                 binding "Map" result
                 |> function
-                    | AlMap fields -> fields
+                    | AlMap fields -> Map.add (AlAtom "branch") (AlText result.Branch) fields
                     | value -> invalidOp $"Expected view fields, got {value}"
         }
 
     member self.DescribeSolution(result: EvaluationContext) =
         task {
-            let! views = self.AlViewsFromQuery(result, result.Branch)
             let! raw = self.Describe("phlow_clist", Views.rawFields result, result.Branch)
 
             return {
@@ -294,8 +293,7 @@ type AlMcpClient(url: string) as self =
                 Views =
                     raw
                     :: [
-                        for binding in result.Bindings.Values ->
-                            Views.inspector binding (Map.find binding.Symbol views)
+                        for binding in result.Bindings.Values -> Views.inspector result.Branch binding
                     ]
             }
         }
@@ -343,25 +341,41 @@ type AlMcpClient(url: string) as self =
         task {
             let query = view_query
             let! result = self.QueryAlWith(query.Source, branch, Map.ofList [ "Target", value ])
-            let views = Views.fromQuery query.Output result
+
+            let views =
+                Views.fromQuery query.Output result
+                |> List.map (Map.add (AlAtom "branch") (AlText result.Branch))
+
             do! self.ReleaseContext(result.Context)
             return views
         }
 
-    member self.AlViewsFromQuery(results: EvaluationContext, branch: string) =
+    member self.ResolveView(fields: Map<AlValue, AlValue>) =
         task {
-            let branch = if isNull branch then results.Branch else branch
+            let branch = text "branch" fields
 
-            let! views =
-                results.Bindings.Values
-                |> Seq.map (fun b ->
-                    task {
-                        let! views = self.Inspect(b.Value, branch)
-                        return b.Symbol, views
-                    })
-                |> Task.WhenAll
+            match text "view" fields with
+            | "inspect" ->
+                let! views = self.Inspect(fields[AlAtom "target"], branch)
 
-            return Map.ofArray views
+                return
+                    fields
+                    |> Map.add (AlAtom "view") (AlText "inspector")
+                    |> Map.add (AlAtom "views") (AlList(List.map AlMap views))
+            | "deferred" ->
+                let! result =
+                    self.QueryAlWith(
+                        "to_map View Map.",
+                        branch,
+                        Map.ofList [ "View", fields[AlAtom "value"] ]
+                    )
+
+                do! self.ReleaseContext(result.Context)
+
+                match binding "Map" result with
+                | AlMap description -> return Map.add (AlAtom "branch") (AlText branch) description
+                | value -> return invalidOp $"Expected view fields, got {value}"
+            | kind -> return invalidOp $"Expected a deferred view, got {kind}"
         }
 
     member _.NextSolution(context: string) =

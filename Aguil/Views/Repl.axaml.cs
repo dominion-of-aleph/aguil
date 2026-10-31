@@ -82,6 +82,7 @@ public partial class Repl : UserControl
                 try
                 {
                     var content = new Inspector { Views = await al.Inspect(target, inspection.Branch) };
+                    await content.LoadSelected();
                     var pane = new Pane { Header = inspection.Target, Content = content };
                     Inspector.SetInspection(pane, inspection);
                     Flow.Open(pane, parent);

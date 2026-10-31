@@ -19,7 +19,7 @@ adding another rendering path. Prefer Avalonia's components over custom layout m
   updates at the collection's owning boundary so ordinary add/remove operations and UI commands
   behave consistently. A convenience method must not be the only path that keeps state valid.
 
-- `Aguil/Views` contains Avalonia UI hosts: `Repl`, `Inspector`, `InlinePreview`, `Pane`,
+- `Aguil/Views` contains Avalonia UI hosts: `Repl`, `Inspector`, `DeferredContent`, `InlinePreview`, `Pane`,
   `PaneColumn`, and `PaneHost`.
   `Inspector` orders and hosts tabs; `InlinePreview` supplies the REPL's height cap and
   resize grip. Allocation of screen space belongs to the host.
@@ -52,7 +52,10 @@ cell brick class, such as `brick_editor_cell` or `brick_text`. `phlow_clist` sup
 `brick_table` XAML and row data. `Bindings.Data` converts AL lists and row fields for
 ordinary bindings; native templates preserve recycled controls. Row inspection targets
 are inherited by cells. `Code.FollowCaret` handles outer scrolling.
-The MCP adapter asks AL to describe its Raw table before storing the completed `Solution`.
+The MCP adapter discovers view titles, priorities, and AL view values before rendering.
+Raw uses the same deferred description path; binding inspectors discover their views when opened.
+`DeferredContent` materializes selected tabs on load and retains their controls across tab switches.
+Discovery runs AL's existing `view` methods; `to_map` and native construction wait until selection.
 XAML slot metadata is resolved by name, with the nearest class overriding inherited specs.
 Failed inspection requests leave displayed panes unchanged and report the error, without a fallback view.
 

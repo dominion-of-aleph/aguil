@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Aguil.Core;
 using Aguil.Phlow;
 using Avalonia;
@@ -56,6 +57,13 @@ public partial class Inspector : TabControl
     public static void SetInspection(Control control, Inspection? inspection)
     {
         control.SetValue(InspectionProperty, inspection);
+    }
+
+    public async Task LoadSelected()
+    {
+        if (SelectedItem is not AlPhlowView view) return;
+        var content = view.Content is DeferredContent deferred ? await deferred.Load() : view.Content;
+        if (content is Inspector inspector) await inspector.LoadSelected();
     }
 
     private void Show(IEnumerable<AlPhlowView> views)

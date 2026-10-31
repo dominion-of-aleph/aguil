@@ -27,11 +27,11 @@ let rawFields result =
         AlList(rows " = " result.Bindings @ rows " : " result.Constraints @ rows " => " result.Store)
     ]
 
-let inspector binding views =
+let inspector branch binding =
     Map.ofList [
-        AlAtom "view", AlText "inspector"
+        AlAtom "view", AlText "inspect"
         AlAtom "title", AlText binding.Symbol
         AlAtom "priority", AlInteger 200I
         AlAtom "target", binding.Value
-        AlAtom "views", AlList(List.map AlMap views)
+        AlAtom "branch", AlText branch
     ]

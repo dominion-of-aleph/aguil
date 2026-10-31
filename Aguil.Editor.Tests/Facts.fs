@@ -95,6 +95,40 @@ type Facts(output: ITestOutputHelper) =
         }
 
     [<Fact>]
+    member _.LazyViewDescriptions() =
+        task {
+            let! result = lazyViewDescriptions ()
+            Assert.Equal(("deferred", "inspect", "deferred", true, "xaml", true, true), see result)
+        }
+
+    [<Fact>]
+    member _.LazyTabs() =
+        task {
+            let! result = lazyTabs ()
+            let before, initial, requests, stayed, text, sameEditor = see result
+            Assert.Empty before
+            Assert.Equal<string list>([ "first" ], initial)
+            Assert.Equal<string list>([ "first"; "second" ], requests)
+            Assert.True stayed
+            Assert.Equal("edited", text)
+            Assert.True sameEditor
+        }
+
+    [<Fact>]
+    member _.NestedViewBranches() =
+        task {
+            let! result = nestedViewBranches ()
+            Assert.Equal<string list>([ "parent"; "child" ], see result)
+        }
+
+    [<Fact>]
+    member _.SelectedViewFailure() =
+        task {
+            let! result = selectedViewFailure ()
+            Assert.Equal("broken view", see result)
+        }
+
+    [<Fact>]
     member _.XamlTextBindings() =
         onUiAsync (fun () ->
             task {

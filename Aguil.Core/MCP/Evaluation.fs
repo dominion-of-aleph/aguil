@@ -13,10 +13,15 @@ type Decoded = { Values: Binding<AlValue> list; Failures: Binding<DecodeError> l
 
 type ViewQuery = { Source: string; Output: string }
 
+let view_summary =
+    "view_mapping Phlow Kind, dif Kind \"empty\", get_slots Phlow #{title => Title, priority => Priority}, = Map #{view => \"deferred\", title => Title, priority => Priority, value => Phlow}"
+
 let view_query = {
     Output = "Maps"
     Source =
-        "new phlow_builder #{} Builder. findall Map Maps {view Target Builder Phlow, to_map Phlow Map}."
+        "new phlow_builder #{} Builder. findall Map Maps {view Target Builder Phlow, "
+        + view_summary
+        + "}."
 }
 
 
