@@ -33,6 +33,7 @@ type AlMutableObject
     member _.Branch = branch
     member _.Client = client
     member _.Current = AlMap current
+    member _.Pending = slots.Values |> Seq.map _.Pending |> Seq.toArray |> Task.WhenAll
     member internal _.Resolve = resolve
 
     abstract Changed: Map<AlValue, AlValue> list -> unit

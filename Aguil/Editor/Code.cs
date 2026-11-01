@@ -19,6 +19,12 @@ public static class Code
     public static readonly AttachedProperty<bool> FollowCaretProperty =
         AvaloniaProperty.RegisterAttached<TextEditor, bool>("FollowCaret", typeof(Code));
 
+    public static readonly AttachedProperty<string?> OriginalTextProperty =
+        AvaloniaProperty.RegisterAttached<TextEditor, string?>("OriginalText", typeof(Code));
+
+    public static readonly AttachedProperty<bool> IsModifiedProperty =
+        AvaloniaProperty.RegisterAttached<TextEditor, bool>("IsModified", typeof(Code));
+
     private static readonly AttachedProperty<EventHandler?> CaretHandlerProperty =
         AvaloniaProperty.RegisterAttached<TextEditor, EventHandler?>("CaretHandler", typeof(Code));
 
@@ -52,14 +58,16 @@ public static class Code
                     if (view.TranslatePoint(point - view.ScrollOffset, editor) is { } at)
                         editor.BringIntoView(new Rect(at, new Size(1, view.DefaultLineHeight)));
                 }
-                : null;
+            : null;
             editor.SetValue(CaretHandlerProperty, handler);
             if (handler is not null) editor.TextArea.Caret.PositionChanged += handler;
         });
         TextProperty.Changed.AddClassHandler<TextEditor>((editor, _) =>
         {
             if (editor.Text != (GetText(editor) ?? "")) editor.Text = GetText(editor) ?? "";
+            UpdateModified(editor);
         });
+        OriginalTextProperty.Changed.AddClassHandler<TextEditor>((editor, _) => UpdateModified(editor));
         GrammarProperty.Changed.AddClassHandler<TextEditor>((editor, _) => Rebuild(editor));
         KeymapProperty.Changed.AddClassHandler<TextEditor>((editor, _) =>
         {
@@ -71,6 +79,7 @@ public static class Code
         Control.LoadedEvent.AddClassHandler<TextEditor>((editor, _) =>
         {
             editor.TextChanged += TextChanged;
+            UpdateModified(editor);
             Rebuild(editor);
         });
         Control.UnloadedEvent.AddClassHandler<TextEditor>((editor, _) =>
@@ -100,7 +109,17 @@ public static class Code
     {
         var editor = (TextEditor)sender!;
         if (GetText(editor) != editor.Text) editor.SetCurrentValue(TextProperty, editor.Text);
+        UpdateModified(editor);
     }
+
+    public static string? GetOriginalText(TextEditor editor) => editor.GetValue(OriginalTextProperty);
+
+    public static void SetOriginalText(TextEditor editor, string? value) => editor.SetValue(OriginalTextProperty, value);
+
+    public static bool GetIsModified(TextEditor editor) => editor.GetValue(IsModifiedProperty);
+
+    private static void UpdateModified(TextEditor editor) =>
+        editor.SetValue(IsModifiedProperty, GetOriginalText(editor) is { } original && editor.Text != original);
 
     public static string? GetText(TextEditor editor)
     {

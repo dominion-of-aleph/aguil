@@ -13,7 +13,7 @@ public static class XamlView
                               xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                               xmlns:al="using:Aguil.Bindings"
                               xmlns:phlow="using:Aguil.Phlow"
-                              xmlns:editor="using:Aguil.Editor"
+                              xmlns:editor="clr-namespace:Aguil.Editor;assembly=Aguil"
                               xmlns:keys="clr-namespace:Aguil.Editor;assembly=Aguil.Editor"
                               xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit">
                   <ContentControl.Styles>

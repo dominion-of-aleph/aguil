@@ -506,6 +506,215 @@ let classEditorFilter branch target =
                 window.Close()
         })
 
+/// Edits and reverts a supplied snippet through its AL command.
+let editAndRevert (content: Control) =
+    task {
+        do!
+            waitFor (fun () ->
+                content.GetVisualDescendants()
+                |> Seq.exists (function
+                    | :? TextEditor as e ->
+                        e.Text <> "" && Aguil.Editor.Code.GetOriginalText(e) <> null
+                    | _ -> false))
+
+        let editor =
+            content.GetVisualDescendants()
+            |> Seq.pick (function
+                | :? TextEditor as e -> Some e
+                | _ -> None)
+
+        let revert =
+            content.GetVisualDescendants()
+            |> Seq.pick (function
+                | :? Button as b when
+                    Avalonia.Automation.AutomationProperties.GetName(b) = "Revert changes"
+                    ->
+                    Some b
+                | _ -> None)
+
+        let grid =
+            content.GetVisualDescendants()
+            |> Seq.pick (function
+                | :? Grid as g when g.Classes.Contains "snippet" -> Some g
+                | _ -> None)
+
+        let indicator =
+            grid.Children
+            |> Seq.pick (function
+                | :? Border as b -> Some b
+                | _ -> None)
+
+        let original = editor.Text
+        editor.Document.Insert(editor.Document.TextLength, "\n# draft")
+        do! waitFor (fun () -> grid.Classes.Contains "edited" && revert.IsVisible && revert.IsEnabled)
+        let color = string indicator.Background
+        do! (revert.Command :?> Aguil.Bindings.BindExtension).ExecuteAsync()
+
+        do!
+            waitFor (fun () ->
+                editor.Text = original
+                && not (grid.Classes.Contains "edited")
+                && not revert.IsVisible)
+
+        return color, editor.Text
+    }
+
+/// Saves through the snippet button and returns the displayed source and button outline.
+let saveSnippet (content: Control) (text: string) =
+    task {
+        let editors () =
+            content.GetVisualDescendants()
+            |> Seq.choose (function
+                | :? TextEditor as e -> Some e
+                | _ -> None)
+
+        do! waitFor (fun () -> editors () |> Seq.exists (fun e -> e.Text <> ""))
+        let editor = editors () |> Seq.find (fun e -> e.Text <> "")
+
+        let save =
+            content.GetVisualDescendants()
+            |> Seq.pick (function
+                | :? Button as b when
+                    Avalonia.Automation.AutomationProperties.GetName b = "Save changes"
+                    ->
+                    Some b
+                | _ -> None)
+
+        editor.Document.Replace(0, editor.Document.TextLength, text)
+        do! waitFor (fun () -> save.IsVisible && save.IsEffectivelyEnabled)
+        do! (save.Command :?> Aguil.Bindings.BindExtension).ExecuteAsync()
+        do! waitFor (fun () -> not (Aguil.Editor.Code.GetIsModified editor) && not save.IsVisible)
+
+        return
+            editor.Text, save.BorderThickness, string save.BorderBrush, save.MinWidth, save.MinHeight
+    }
+
+/// Exercises the same edit/revert controls for definition and comment sources.
+let snippetEditing branch target selector =
+    onUiAsync (fun () ->
+        task {
+            let! result =
+                alQuery
+                    (alClient ())
+                    branch
+                    "send Target Selector [Source]. new brick_source_snippet #{source_record => Source} Brick. to_xaml Brick Xaml."
+                    [ "Target", target; "Selector", AlAtom selector ]
+
+            let xaml =
+                match binding "Xaml" result with
+                | AlText s -> s
+                | x -> failwithf "%A" x
+
+            let content = XamlView.Load xaml
+            Aguil.Bindings.Context.SetBranch(content, result.Branch)
+            let window = Window(Content = content, Width = 600., Height = 500.)
+            window.Show()
+
+            try
+                return! editAndRevert content
+            finally
+                window.Close()
+        })
+
+/// Exercises commands on a method row; use a disposable example class/branch.
+let methodSnippetActions branch target =
+    onUiAsync (fun () ->
+        task {
+            let! _, content = classEditor branch target
+            let window = Window(Content = content, Width = 600., Height = 500.)
+            window.Show()
+
+            try
+                do!
+                    waitFor (fun () ->
+                        content.GetVisualDescendants() |> Seq.exists (fun c -> c :? TextEditor))
+
+                let! edited = editAndRevert content
+
+                let table =
+                    content.GetVisualDescendants()
+                    |> Seq.pick (function
+                        | :? TableView as t -> Some t
+                        | _ -> None)
+
+                let delete =
+                    content.GetVisualDescendants()
+                    |> Seq.pick (function
+                        | :? Button as b when
+                            Avalonia.Automation.AutomationProperties.GetName(b) = "Delete method"
+                            ->
+                            Some b
+                        | _ -> None)
+
+                let count = table.Items.Count
+                do! (delete.Command :?> Aguil.Bindings.BindExtension).ExecuteAsync()
+                do! waitFor (fun () -> table.Items.Count = count - 1)
+                return edited, table.Items.Count
+            finally
+                window.Close()
+        })
+
+/// A hidden method keeps its draft and its revert command when the filter brings it back.
+let methodDraftFilter branch target =
+    onUiAsync (fun () ->
+        task {
+            let! _, content = classEditor branch target
+            let window = Window(Content = content, Width = 600., Height = 500.)
+            window.Show()
+
+            try
+                let combo =
+                    content.GetVisualDescendants()
+                    |> Seq.pick (function
+                        | :? ComboBox as c -> Some c
+                        | _ -> None)
+
+                let editors () =
+                    content.GetVisualDescendants()
+                    |> Seq.choose (function
+                        | :? TextEditor as e -> Some e
+                        | _ -> None)
+                    |> Seq.toList
+
+                do! waitFor (fun () -> combo.SelectedIndex = 0 && editors().Length = 1)
+                combo.SelectedIndex <- 1
+                do! waitFor (fun () -> editors().Length = 2 && (editors () |> List.last).Text <> "")
+                let editor = editors () |> List.last
+                let original = editor.Text
+                editor.Document.Insert(editor.Document.TextLength, "\n# retained draft")
+                let draft = editor.Text
+                combo.SelectedIndex <- 0
+                do! waitFor (fun () -> editors().Length = 1)
+                combo.SelectedIndex <- 1
+
+                do!
+                    waitFor (fun () ->
+                        editors().Length = 2 && (editors () |> List.last).Text = draft)
+
+                let restored = editors () |> List.last
+                let dirty = Aguil.Editor.Code.GetIsModified restored
+
+                let revert =
+                    content.GetVisualDescendants()
+                    |> Seq.pick (function
+                        | :? Button as b when
+                            b.IsVisible
+                            && Avalonia.Automation.AutomationProperties.GetName(b) = "Revert changes"
+                            ->
+                            Some b
+                        | _ -> None)
+
+                do! (revert.Command :?> Aguil.Bindings.BindExtension).ExecuteAsync()
+
+                do!
+                    waitFor (fun () ->
+                        restored.Text = original && not (Aguil.Editor.Code.GetIsModified restored))
+
+                return dirty, restored.Text
+            finally
+                window.Close()
+        })
+
 /// Opening an inspection can await its selected tab before displaying the pane.
 let selectedViewFailure () =
     onUiAsync (fun () ->
